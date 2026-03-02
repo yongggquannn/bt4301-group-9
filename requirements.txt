@@ -1,0 +1,2 @@
+# BT4301 Group Project - Python dependencies
+# Add packages as needed for DataOps and MLOps (e.g. pandas, scikit-learn, jupyter).
