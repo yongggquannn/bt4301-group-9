@@ -26,6 +26,5 @@ env/
 .DS_Store
 Thumbs.db
 
-# Optional: uncomment if data is large and stored externally
-# data/raw/
-# data/processed/
+data/raw/
+data/processed/
