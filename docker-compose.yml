@@ -1,24 +1,21 @@
 version: "3.8"
-
 services:
   postgres:
     image: postgres:15
     container_name: bt4301_postgres
     environment:
-      POSTGRES_USER: bt4301
-      POSTGRES_PASSWORD: bt4301pass
-      POSTGRES_DB: kkbox
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Put SQL files at repo root: db/init/*.sql
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bt4301 -d kkbox"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
-
 volumes:
   postgres_data:
