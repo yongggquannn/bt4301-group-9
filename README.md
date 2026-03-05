@@ -53,3 +53,82 @@ This downloads and unzips the following files into `data/raw/`:
 | `members_v3.csv` | User demographic and registration info |
 | `transactions_v2.csv` | Payment transaction history |
 | `user_logs_v2.csv` | Daily listening activity logs |
+
+## Running the Pipeline
+
+### 1. Start the database
+
+```bash
+docker compose up -d
+```
+
+Starts a PostgreSQL 15 container (`bt4301_postgres`) and automatically creates all schemas and empty tables from `db/init/`. Wait for the health check:
+
+```bash
+docker ps  # STATUS should show "(healthy)"
+```
+
+### 2. Install Python dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Load raw data into PostgreSQL
+
+```bash
+python source/dataops/load_raw_data.py
+```
+
+Bulk-loads all four CSV files from `data/raw/` into the `raw.*` tables. Expected output:
+
+```
+[raw.train]        Loaded: 194,192 rows
+[raw.members]      Loaded: 172,033 rows
+[raw.transactions] Loaded: 226,143 rows
+[raw.user_logs]    Loaded: 2,705,095 rows
+```
+
+> Re-running is safe — each table is truncated before loading.
+
+### 4. Build the feature table
+
+```bash
+python source/dataops/build_customer_features.py
+```
+
+Joins and aggregates the four raw tables into `processed.customer_features` — one row per customer with demographic, contract, usage, and churn label features.
+
+### 5. Verify the results
+
+Connect with any PostgreSQL client (TablePlus, psql, pgAdmin):
+
+| Field    | Value        |
+|----------|--------------|
+| Host     | `localhost`  |
+| Port     | `5432`       |
+| Database | `kkbox`      |
+| User     | `bt4301`     |
+| Password | `bt4301pass` |
+
+Quick sanity queries:
+
+```sql
+-- Row count should match raw.train
+SELECT COUNT(*) FROM processed.customer_features;
+
+-- Churn distribution
+SELECT is_churn, COUNT(*) FROM processed.customer_features GROUP BY is_churn;
+
+-- Sample rows
+SELECT * FROM processed.customer_features LIMIT 5;
+```
+
+To reset and re-run the full pipeline from scratch:
+
+```bash
+docker compose down -v   # wipes the Postgres volume
+docker compose up -d
+python source/dataops/load_raw_data.py
+python source/dataops/build_customer_features.py
+```
