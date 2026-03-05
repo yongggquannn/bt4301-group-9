@@ -3,3 +3,4 @@
 kaggle
 pandas
 psycopg2-binary
+apache-airflow
