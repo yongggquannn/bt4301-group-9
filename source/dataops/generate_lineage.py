@@ -1,37 +1,78 @@
 from __future__ import annotations
 
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pandas as pd
+# Ensure source/dataops is importable regardless of Airflow worker cwd.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import psycopg2
 
 from feature_registry import FEATURE_SPECS
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+DB_CONFIG = {
+    "host": os.getenv("POSTGRES_HOST", "localhost"),
+    "port": int(os.getenv("POSTGRES_PORT", 5432)),
+    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
+    "user": os.getenv("POSTGRES_USER", "bt4301"),
+    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
+}
+
+DDL = """
+CREATE TABLE IF NOT EXISTS processed.data_lineage (
+    feature_name TEXT NOT NULL,
+    source_table TEXT NOT NULL,
+    transformation_rule TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
+);
+"""
+
+TRUNCATE_SQL = "TRUNCATE TABLE processed.data_lineage;"
+
+INSERT_SQL = """
+INSERT INTO processed.data_lineage (
+    feature_name,
+    source_table,
+    transformation_rule,
+    created_at
+) VALUES (%s, %s, %s, %s);
+"""
 
 
-def build_lineage() -> pd.DataFrame:
-    created_at = datetime.now(timezone.utc).isoformat()
-    return pd.DataFrame(
-        [
-            {
-                "feature_name": spec.feature_name,
-                "source_table": spec.source_table,
-                "transformation_rule": spec.transformation_rule,
-                "created_at": created_at,
-            }
-            for spec in FEATURE_SPECS
-        ]
-    )
+def lineage_rows() -> list[tuple[str, str, str, datetime]]:
+    created_at = datetime.now(timezone.utc)
+    return [
+        (
+            spec.feature_name,
+            spec.source_table,
+            spec.transformation_rule,
+            created_at,
+        )
+        for spec in FEATURE_SPECS
+    ]
 
 
 def main() -> None:
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    lineage = build_lineage()
-    output_path = PROCESSED_DIR / "data_lineage.csv"
-    lineage.to_csv(output_path, index=False)
-    print(f"Wrote {len(lineage):,} rows to {output_path}")
+    rows = lineage_rows()
+    conn = psycopg2.connect(**DB_CONFIG)
+    conn.autocommit = False
+    cur = conn.cursor()
+
+    try:
+        cur.execute(DDL)
+        cur.execute(TRUNCATE_SQL)
+        cur.executemany(INSERT_SQL, rows)
+        conn.commit()
+        print(f"Wrote {len(rows):,} rows to processed.data_lineage")
+    except Exception as e:
+        conn.rollback()
+        print(f"ERROR: {e}")
+        raise
+    finally:
+        cur.close()
+        conn.close()
 
 
 if __name__ == "__main__":

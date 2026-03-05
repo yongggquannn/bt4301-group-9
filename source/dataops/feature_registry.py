@@ -19,7 +19,6 @@ TRAIN_FEATURE_SPECS = [
     ),
 ]
 
-
 MEMBER_FEATURE_SPECS = [
     FeatureSpec(
         feature_name="city",
@@ -27,171 +26,122 @@ MEMBER_FEATURE_SPECS = [
         transformation_rule="Direct copy of city keyed by msno.",
     ),
     FeatureSpec(
+        feature_name="bd",
+        source_table="members_v3",
+        transformation_rule="Direct copy of age (bd) keyed by msno; contains outliers and zeros.",
+    ),
+    FeatureSpec(
         feature_name="gender",
         source_table="members_v3",
-        transformation_rule="Direct copy of gender keyed by msno with null values filled as unknown.",
+        transformation_rule="Direct copy of gender keyed by msno; sparse with many NULLs.",
     ),
     FeatureSpec(
         feature_name="registered_via",
         source_table="members_v3",
-        transformation_rule="Direct copy of registered_via keyed by msno.",
+        transformation_rule="Direct copy of registered_via (registration channel code) keyed by msno.",
     ),
     FeatureSpec(
-        feature_name="age",
+        feature_name="registration_init_time",
         source_table="members_v3",
-        transformation_rule="Derived from bd after coercing to numeric and keeping ages between 10 and 80.",
-    ),
-    FeatureSpec(
-        feature_name="registration_year",
-        source_table="members_v3",
-        transformation_rule="Extracted year from registration_init_time parsed as YYYYMMDD.",
-    ),
-    FeatureSpec(
-        feature_name="registration_month",
-        source_table="members_v3",
-        transformation_rule="Extracted month from registration_init_time parsed as YYYYMMDD.",
-    ),
-    FeatureSpec(
-        feature_name="has_member_profile",
-        source_table="members_v3",
-        transformation_rule="Indicator equal to 1 when city is present after the member join.",
+        transformation_rule="Direct copy of registration date as YYYYMMDD integer keyed by msno.",
     ),
 ]
-
 
 TRANSACTION_FEATURE_SPECS = [
     FeatureSpec(
-        feature_name="txn_count",
+        feature_name="transaction_count",
         source_table="transactions_v2",
-        transformation_rule="Count of transaction rows grouped by msno.",
+        transformation_rule="COUNT(*) of transaction rows grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="txn_payment_method_nunique",
+        feature_name="renewal_count",
         source_table="transactions_v2",
-        transformation_rule="Distinct count of payment_method_id grouped by msno.",
+        transformation_rule="SUM(CASE WHEN is_cancel = 0 THEN 1 ELSE 0 END) grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="txn_avg_plan_days",
+        feature_name="cancel_count",
         source_table="transactions_v2",
-        transformation_rule="Average payment_plan_days per msno.",
+        transformation_rule="SUM(is_cancel) grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="txn_avg_list_price",
+        feature_name="total_amount_paid",
         source_table="transactions_v2",
-        transformation_rule="Average plan_list_price per msno.",
+        transformation_rule="SUM(actual_amount_paid) grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="txn_avg_amount_paid",
+        feature_name="avg_plan_days",
         source_table="transactions_v2",
-        transformation_rule="Average actual_amount_paid per msno.",
+        transformation_rule="AVG(payment_plan_days) grouped by msno, rounded to 2 decimal places.",
     ),
     FeatureSpec(
-        feature_name="txn_auto_renew_rate",
+        feature_name="latest_payment_method_id",
         source_table="transactions_v2",
-        transformation_rule="Mean of is_auto_renew per msno.",
+        transformation_rule="payment_method_id from the most recent transaction row (by transaction_date) per msno.",
     ),
     FeatureSpec(
-        feature_name="txn_cancel_rate",
+        feature_name="latest_is_auto_renew",
         source_table="transactions_v2",
-        transformation_rule="Mean of is_cancel per msno.",
+        transformation_rule="is_auto_renew from the most recent transaction row (by transaction_date) per msno.",
     ),
     FeatureSpec(
-        feature_name="txn_avg_days_until_expiry",
+        feature_name="latest_membership_expire_date",
         source_table="transactions_v2",
-        transformation_rule="Average difference in days between membership_expire_date and transaction_date per msno.",
-    ),
-    FeatureSpec(
-        feature_name="txn_last_membership_days",
-        source_table="transactions_v2",
-        transformation_rule="Difference in days between the latest membership_expire_date and latest transaction_date per msno.",
-    ),
-    FeatureSpec(
-        feature_name="has_transaction_history",
-        source_table="transactions_v2",
-        transformation_rule="Indicator equal to 1 when txn_count is greater than 0 after aggregation.",
+        transformation_rule="MAX(membership_expire_date) as YYYYMMDD integer per msno.",
     ),
 ]
-
 
 USER_LOG_FEATURE_SPECS = [
     FeatureSpec(
-        feature_name="logs_count",
+        feature_name="num_active_days",
         source_table="user_logs_v2",
-        transformation_rule="Count of user log rows grouped by msno.",
+        transformation_rule="COUNT(DISTINCT date) grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="logs_num_25_sum",
+        feature_name="total_secs",
         source_table="user_logs_v2",
-        transformation_rule="Sum of num_25 grouped by msno.",
+        transformation_rule="SUM(total_secs) grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="logs_num_50_sum",
+        feature_name="avg_total_secs",
         source_table="user_logs_v2",
-        transformation_rule="Sum of num_50 grouped by msno.",
+        transformation_rule="AVG(total_secs) grouped by msno, rounded to 4 decimal places.",
     ),
     FeatureSpec(
-        feature_name="logs_num_75_sum",
+        feature_name="total_num_songs",
         source_table="user_logs_v2",
-        transformation_rule="Sum of num_75 grouped by msno.",
+        transformation_rule="SUM(num_25 + num_50 + num_75 + num_985 + num_100) grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="logs_num_985_sum",
+        feature_name="avg_num_songs",
         source_table="user_logs_v2",
-        transformation_rule="Sum of num_985 grouped by msno.",
+        transformation_rule="AVG(num_25 + num_50 + num_75 + num_985 + num_100) grouped by msno, rounded to 4 decimal places.",
     ),
     FeatureSpec(
-        feature_name="logs_num_100_sum",
+        feature_name="total_num_unq",
         source_table="user_logs_v2",
-        transformation_rule="Sum of num_100 grouped by msno.",
+        transformation_rule="SUM(num_unq) grouped by msno.",
     ),
     FeatureSpec(
-        feature_name="logs_num_unq_sum",
+        feature_name="avg_num_unq",
         source_table="user_logs_v2",
-        transformation_rule="Sum of num_unq grouped by msno.",
-    ),
-    FeatureSpec(
-        feature_name="logs_total_secs_sum",
-        source_table="user_logs_v2",
-        transformation_rule="Sum of total_secs grouped by msno.",
-    ),
-    FeatureSpec(
-        feature_name="logs_plays_total_sum",
-        source_table="user_logs_v2",
-        transformation_rule="Sum of per-row total plays computed as num_25 + num_50 + num_75 + num_985 + num_100.",
-    ),
-    FeatureSpec(
-        feature_name="logs_avg_num_unq",
-        source_table="user_logs_v2",
-        transformation_rule="Average num_unq per msno.",
-    ),
-    FeatureSpec(
-        feature_name="logs_avg_total_secs",
-        source_table="user_logs_v2",
-        transformation_rule="Average total_secs per msno.",
-    ),
-    FeatureSpec(
-        feature_name="logs_avg_plays_total",
-        source_table="user_logs_v2",
-        transformation_rule="Average total plays per msno.",
-    ),
-    FeatureSpec(
-        feature_name="logs_avg_secs_per_play",
-        source_table="user_logs_v2",
-        transformation_rule="Total total_secs divided by total plays per msno.",
-    ),
-    FeatureSpec(
-        feature_name="has_user_logs",
-        source_table="user_logs_v2",
-        transformation_rule="Indicator equal to 1 when logs_count is greater than 0 after aggregation.",
+        transformation_rule="AVG(num_unq) grouped by msno, rounded to 4 decimal places.",
     ),
 ]
 
+SYSTEM_FEATURE_SPECS = [
+    FeatureSpec(
+        feature_name="feature_created_at",
+        source_table="processed.customer_features",
+        transformation_rule="Auto-populated by DEFAULT NOW() when row is inserted into processed.customer_features.",
+    ),
+]
 
 FEATURE_SPECS = [
     *TRAIN_FEATURE_SPECS,
     *MEMBER_FEATURE_SPECS,
     *TRANSACTION_FEATURE_SPECS,
     *USER_LOG_FEATURE_SPECS,
+    *SYSTEM_FEATURE_SPECS,
 ]
 
 
