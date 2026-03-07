@@ -27,3 +27,10 @@ CREATE TABLE IF NOT EXISTS processed.customer_features (
     feature_created_at            TIMESTAMPTZ   DEFAULT NOW(),
     PRIMARY KEY (msno)
 );
+
+CREATE TABLE IF NOT EXISTS processed.data_lineage (
+    feature_name TEXT NOT NULL,
+    source_table TEXT NOT NULL,
+    transformation_rule TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
+);

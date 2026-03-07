@@ -47,12 +47,12 @@ bash data/download_data.sh
 
 This downloads and unzips the following files into `data/raw/`:
 
-| File | Description |
-|---|---|
-| `train_v2.csv` | Training labels — whether each user churned |
-| `members_v3.csv` | User demographic and registration info |
-| `transactions_v2.csv` | Payment transaction history |
-| `user_logs_v2.csv` | Daily listening activity logs |
+| File                  | Description                                 |
+| --------------------- | ------------------------------------------- |
+| `train_v2.csv`        | Training labels — whether each user churned |
+| `members_v3.csv`      | User demographic and registration info      |
+| `transactions_v2.csv` | Payment transaction history                 |
+| `user_logs_v2.csv`    | Daily listening activity logs               |
 
 ## Running the Pipeline
 
@@ -104,7 +104,7 @@ Joins and aggregates the four raw tables into `processed.customer_features` — 
 Connect with any PostgreSQL client (TablePlus, psql, pgAdmin):
 
 | Field    | Value        |
-|----------|--------------|
+| -------- | ------------ |
 | Host     | `localhost`  |
 | Port     | `5432`       |
 | Database | `kkbox`      |
@@ -123,6 +123,44 @@ SELECT is_churn, COUNT(*) FROM processed.customer_features GROUP BY is_churn;
 -- Sample rows
 SELECT * FROM processed.customer_features LIMIT 5;
 ```
+
+### 6. Run the Airflow DAG (US-6 — transform + lineage)
+
+> Prerequisites: steps 1–4 must be complete (database up, raw data loaded).
+
+Install Airflow (one-time):
+
+```bash
+pip install apache-airflow
+airflow db migrate # initialise the Airflow metadata DB
+```
+
+Point Airflow at the project DAGs folder:
+
+```bash
+export AIRFLOW**CORE**DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
+```
+
+Start the scheduler and web server (two separate terminals, or background):
+
+```bash
+airflow scheduler &
+airflow webserver --port 8080 &
+```
+
+Trigger the DAG from the UI at http://localhost:8080, or via CLI:
+
+```bash
+airflow dags trigger us6_transform_and_track_lineage
+```
+
+Verify lineage records were written to PostgreSQL:
+
+```sql
+SELECT * FROM processed.data_lineage ORDER BY created_at DESC LIMIT 10;
+```
+
+Expected: 21 rows — one per feature column in `processed.customer_features`.
 
 To reset and re-run the full pipeline from scratch:
 
