@@ -157,7 +157,7 @@ airflow dags trigger us6_transform_and_track_lineage
 Verify lineage records were written to PostgreSQL:
 
 ```sql
-SELECT * FROM lineage.data_lineage ORDER BY created_at DESC LIMIT 10;
+SELECT * FROM processed.data_lineage ORDER BY created_at DESC LIMIT 10;
 ```
 
 Expected: 21 rows — one per feature column in `processed.customer_features`.
