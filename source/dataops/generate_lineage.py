@@ -20,15 +20,6 @@ DB_CONFIG = {
     "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
 }
 
-DDL = """
-CREATE TABLE IF NOT EXISTS processed.data_lineage (
-    feature_name TEXT NOT NULL,
-    source_table TEXT NOT NULL,
-    transformation_rule TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL
-);
-"""
-
 TRUNCATE_SQL = "TRUNCATE TABLE processed.data_lineage;"
 
 INSERT_SQL = """
@@ -61,7 +52,6 @@ def main() -> None:
     cur = conn.cursor()
 
     try:
-        cur.execute(DDL)
         cur.execute(TRUNCATE_SQL)
         cur.executemany(INSERT_SQL, rows)
         conn.commit()

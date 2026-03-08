@@ -51,11 +51,3 @@ CREATE TABLE IF NOT EXISTS predictions.churn_predictions (
   PRIMARY KEY (customer_id)
 );
 
--- Lineage table
-CREATE TABLE IF NOT EXISTS lineage.data_lineage (
-  id                  BIGSERIAL   PRIMARY KEY,
-  feature_name        TEXT,
-  source_table        TEXT,
-  transformation_rule TEXT,
-  created_at          TIMESTAMPTZ DEFAULT NOW()
-);
