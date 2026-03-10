@@ -22,6 +22,9 @@ env/
 *.swp
 *.swo
 
+# Airflow local metadata/logs
+.airflow/
+
 # OS
 .DS_Store
 Thumbs.db
