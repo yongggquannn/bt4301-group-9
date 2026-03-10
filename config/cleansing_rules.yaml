@@ -1,0 +1,121 @@
+# ============================================================
+# Data Cleansing Rules
+# ============================================================
+
+tables:
+
+  # ----------------------------------------------------------
+  # train_v2.csv
+  # ----------------------------------------------------------
+  train:
+    null_handling:
+      msno: drop_row          # Primary key — must not be null
+      is_churn: drop_row      # Target variable — must not be null
+    type_casting: {}
+    duplicate_handling:
+      strategy: none           # No duplicates found on msno
+    outlier_treatment: {}
+
+  # ----------------------------------------------------------
+  # members_v3.csv
+  # ----------------------------------------------------------
+  members:
+    null_handling:
+      msno: drop_row
+      city: keep               # No nulls observed
+      bd: impute_median        # After outlier replacement (see outlier_treatment)
+      gender: drop_column      # >50 % missing (94 517 / 172 033) — column removed
+      registered_via: keep     # No nulls observed
+      registration_init_time: keep  # No nulls observed
+    type_casting:
+      registration_init_time:
+        from: int (YYYYMMDD)
+        to: datetime64[ns]
+    duplicate_handling:
+      strategy: none           # No duplicates found on msno
+    outlier_treatment:
+      bd:
+        rule: "Replace values < 18 or > 90 with NaN, then impute with median"
+        reason: "Age values outside 18-90 are implausible (dataset contains -7000 to 2015)"
+
+  # ----------------------------------------------------------
+  # transactions_v2.csv
+  # ----------------------------------------------------------
+  transactions:
+    null_handling:
+      # No nulls in any column
+      msno: keep
+      payment_method_id: keep
+      payment_plan_days: keep
+      plan_list_price: keep
+      actual_amount_paid: keep
+      is_auto_renew: keep
+      transaction_date: keep
+      membership_expire_date: keep
+      is_cancel: keep
+    type_casting:
+      payment_method_id:
+        from: int
+        to: category
+        note: "Low-frequency IDs [3,6,8,10,11,12,13,14,16,18,20,22,26] merged into category 1"
+      transaction_date:
+        from: int (YYYYMMDD)
+        to: datetime64[ns]
+      membership_expire_date:
+        from: int (YYYYMMDD)
+        to: datetime64[ns]
+    duplicate_handling:
+      strategy: aggregate_by_msno
+      description: >
+        Multiple transactions per user are aggregated into one row.
+        Aggregation logic:
+          - payment_method_id: first occurrence
+          - payment_plan_days: sum → total_payment_plan_days
+          - plan_list_price: sum → total_plan_list_price
+          - actual_amount_paid: sum → total_actual_amount_paid
+          - is_auto_renew: first occurrence → is_auto_renewal
+          - transaction_date: min → first_transaction_date, max → last_transaction_date
+          - membership_expire_date: max
+          - is_cancel: 0 if any cancellation (1) present, else 1
+          - new column: no_of_transactions (count of rows per msno)
+          - last_plan_days / last_plan_price: from the latest transaction
+      single_transaction_users: "Kept as-is with no_of_transactions = 1"
+    outlier_treatment: {}
+
+  # ----------------------------------------------------------
+  # user_logs_v2.csv
+  # ----------------------------------------------------------
+  user_logs:
+    null_handling:
+      # Not merged into final dataset in current EDA pipeline
+      msno: keep
+      date: keep
+      num_25: keep
+      num_50: keep
+      num_75: keep
+      num_985: keep
+      num_100: keep
+      num_unq: keep
+      total_secs: keep
+    type_casting:
+      date:
+        from: int (YYYYMMDD)
+        to: datetime64[ns]
+    duplicate_handling:
+      strategy: not_applicable  # Table not used in final merge
+    outlier_treatment: {}
+
+# ----------------------------------------------------------
+# Derived / Engineered columns (post-merge)
+# ----------------------------------------------------------
+derived_columns:
+  membership_duration_days:
+    formula: "membership_expire_date - registration_init_time (days)"
+  transaction_span_days:
+    formula: "last_transaction_date - first_transaction_date (days)"
+  avg_plan_price:
+    formula: "total_plan_list_price / no_of_transactions"
+  avg_plan_days:
+    formula: "total_payment_plan_days / no_of_transactions"
+  amount_due:
+    formula: "total_plan_list_price - total_actual_amount_paid"
