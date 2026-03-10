@@ -22,8 +22,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.decorators import dag, task
 
 
 # If PROJECT_ROOT is not provided, resolve from this file location:
@@ -45,32 +44,29 @@ def run_python_script(script_path: Path) -> None:
     )
 
 
-default_args = {
-    "owner": "dataops",
-    "depends_on_past": False,
-    "retries": 1,
-}
-
-
-with DAG(
+@dag(
     dag_id="us6_transform_and_track_lineage",
     description="US-06: build processed.customer_features and populate processed.data_lineage",
-    default_args=default_args,
+    default_args={
+        "owner": "dataops",
+        "depends_on_past": False,
+        "retries": 1,
+    },
     start_date=datetime(2026, 1, 1),
     schedule=None,  # Manual trigger for sprint/demo use.
     catchup=False,
     tags=["bt4301", "dataops", "us6"],
-) as dag:
-    transform_features = PythonOperator(
-        task_id="transform_features",
-        python_callable=run_python_script,
-        op_kwargs={"script_path": TRANSFORM_SCRIPT},
-    )
+) 
+def us6_transform_and_track_lineage():
+    @task(task_id="transform_features")
+    def transform_features():
+        run_python_script(TRANSFORM_SCRIPT)
 
-    track_lineage = PythonOperator(
-        task_id="track_lineage",
-        python_callable=run_python_script,
-        op_kwargs={"script_path": LINEAGE_SCRIPT},
-    )
+    @task(task_id="track_lineage")
+    def track_lineage():
+        run_python_script(LINEAGE_SCRIPT)
 
-    transform_features >> track_lineage
+    transform_features() >> track_lineage()
+
+
+dag = us6_transform_and_track_lineage()

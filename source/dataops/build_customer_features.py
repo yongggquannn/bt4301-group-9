@@ -241,7 +241,7 @@ def main():
         conn.close()
 
     print("\n" + "=" * 60)
-    print("processed.customer_features is ready.")
+    print("Done. processed.customer_features is ready. Run generate_lineage.py next.")
     print("=" * 60)
 
 
