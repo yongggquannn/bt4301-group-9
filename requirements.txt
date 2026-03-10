@@ -2,5 +2,8 @@
 # Add packages as needed for DataOps and MLOps (e.g. pandas, scikit-learn, jupyter).
 kaggle
 pandas
+numpy
+matplotlib
+seaborn
 psycopg2-binary
 apache-airflow
