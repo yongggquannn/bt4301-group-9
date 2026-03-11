@@ -99,6 +99,16 @@ python source/dataops/build_customer_features.py
 
 Joins and aggregates the four raw tables into `processed.customer_features` — one row per customer with demographic, contract, usage, and churn label features.
 
+### 5. Feature selection + importance (MLflow)
+
+This step performs **permutation importance** analysis and selects a final non-redundant feature set from the feature store. It also logs the resulting feature list as an **MLflow artifact**.
+
+```bash
+python source/mlops/feature_selection.py
+```
+
+Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` by default).
+
 ### 5. Verify the results
 
 Connect with any PostgreSQL client (TablePlus, psql, pgAdmin):
