@@ -1,0 +1,13 @@
+feature
+latest_payment_method_id
+registered_via
+latest_is_auto_renew
+city
+gender
+latest_membership_expire_date
+total_amount_paid
+transaction_count
+cancel_count
+registration_init_time
+bd
+avg_plan_days

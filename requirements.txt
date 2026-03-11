@@ -7,3 +7,5 @@ matplotlib
 seaborn
 psycopg2-binary
 apache-airflow
+scikit-learn
+mlflow
