@@ -46,23 +46,33 @@ def lineage_rows() -> list[tuple[str, str, str, datetime]]:
 
 
 def main() -> None:
+    print("=" * 60)
+    print("Generating processed.data_lineage")
+    print("=" * 60)
+
     rows = lineage_rows()
     conn = psycopg2.connect(**DB_CONFIG)
     conn.autocommit = False
     cur = conn.cursor()
 
     try:
+        print("\n[1/2] Truncating existing lineage table...")
         cur.execute(TRUNCATE_SQL)
+        print("[2/2] Inserting refreshed lineage rows...")
         cur.executemany(INSERT_SQL, rows)
         conn.commit()
-        print(f"Wrote {len(rows):,} rows to processed.data_lineage")
+        print(f"  Wrote {len(rows):,} rows to processed.data_lineage")
     except Exception as e:
         conn.rollback()
-        print(f"ERROR: {e}")
+        print(f"\n  ERROR: {e}")
         raise
     finally:
         cur.close()
         conn.close()
+        
+    print("\n" + "=" * 60)
+    print("Done. Lineage generated. Run run_eda.py next.")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

@@ -56,7 +56,7 @@ This downloads and unzips the following files into `data/raw/`:
 
 ## Running the Pipeline
 
-### 1. Start the database
+### 1. Start PostgreSQL
 
 ```bash
 docker compose up -d
@@ -74,99 +74,129 @@ docker ps  # STATUS should show "(healthy)"
 pip install -r requirements.txt
 ```
 
-### 3. Load raw data into PostgreSQL
+### 3. Set DB environment variables
+
+PowerShell:
+
+```powershell
+$env:POSTGRES_HOST="127.0.0.1"
+$env:POSTGRES_PORT="5432"
+$env:POSTGRES_DB="kkbox"
+$env:POSTGRES_USER="bt4301"
+$env:POSTGRES_PASSWORD="bt4301pass"
+```
+
+CMD:
+
+```cmd
+set POSTGRES_HOST=127.0.0.1
+set POSTGRES_PORT=5432
+set POSTGRES_DB=kkbox
+set POSTGRES_USER=bt4301
+set POSTGRES_PASSWORD=bt4301pass
+```
+
+### 4. Run full script pipeline
 
 ```bash
 python source/dataops/load_raw_data.py
-```
-
-Bulk-loads all four CSV files from `data/raw/` into the `raw.*` tables. Expected output:
-
-```
-[raw.train]        Loaded: 194,192 rows
-[raw.members]      Loaded: 172,033 rows
-[raw.transactions] Loaded: 226,143 rows
-[raw.user_logs]    Loaded: 2,705,095 rows
-```
-
-> Re-running is safe — each table is truncated before loading.
-
-### 4. Build the feature table
-
-```bash
+python source/dataops/cleanse_data.py
 python source/dataops/build_customer_features.py
+python source/dataops/generate_lineage.py
+python source/dataops/run_eda.py
+python source/dataops/generate_eda_images_report.py
 ```
 
-Joins and aggregates the four raw tables into `processed.customer_features` — one row per customer with demographic, contract, usage, and churn label features.
+What each script does:
 
-### 5. Verify the results
+- `load_raw_data.py`: loads `data/raw/*.csv` into `raw.*`
+- `cleanse_data.py`: notebook-parity cleansing/prep and writes `data/processed/df_train_final.csv`
+- `build_customer_features.py`: refreshes `processed.customer_features`
+- `generate_lineage.py`: refreshes `processed.data_lineage`
+- `run_eda.py`: writes EDA outputs to `data/processed/eda/`
+- `generate_eda_images_report.py`: generates 13 EDA charts and HTML report with those charts to `data/processed/eda/`
 
-Connect with any PostgreSQL client (TablePlus, psql, pgAdmin):
-
-| Field    | Value        |
-| -------- | ------------ |
-| Host     | `localhost`  |
-| Port     | `5432`       |
-| Database | `kkbox`      |
-| User     | `bt4301`     |
-| Password | `bt4301pass` |
-
-Quick sanity queries:
+### 5. Validate SQL outputs
 
 ```sql
--- Row count should match raw.train
-SELECT COUNT(*) FROM processed.customer_features;
+SELECT COUNT(*) AS raw_train_rows FROM raw.train;
+SELECT COUNT(*) AS customer_feature_rows FROM processed.customer_features;
+SELECT COUNT(*) AS lineage_rows FROM processed.data_lineage;
 
--- Churn distribution
-SELECT is_churn, COUNT(*) FROM processed.customer_features GROUP BY is_churn;
-
--- Sample rows
-SELECT * FROM processed.customer_features LIMIT 5;
+WITH feature_cols AS (
+  SELECT column_name
+  FROM information_schema.columns
+  WHERE table_schema='processed'
+    AND table_name='customer_features'
+    AND column_name <> 'msno'
+),
+lineage_feats AS (
+  SELECT DISTINCT feature_name
+  FROM processed.data_lineage
+)
+SELECT
+  (SELECT COUNT(*)
+   FROM feature_cols fc
+   LEFT JOIN lineage_feats lf ON fc.column_name=lf.feature_name
+   WHERE lf.feature_name IS NULL) AS missing_in_lineage,
+  (SELECT COUNT(*)
+   FROM lineage_feats lf
+   LEFT JOIN feature_cols fc ON lf.feature_name=fc.column_name
+   WHERE fc.column_name IS NULL) AS extra_in_lineage;
 ```
 
-### 6. Run the Airflow DAG (US-6 — transform + lineage)
+Expected:
 
-> Prerequisites: steps 1–4 must be complete (database up, raw data loaded).
+- `raw_train_rows == customer_feature_rows`
+- `missing_in_lineage = 0`
+- `extra_in_lineage = 0`
 
-Install Airflow (one-time):
+### 6. Airflow DAGs
+
+Current DAGs:
+
+- `us6_transform_and_track_lineage`
+- `us8_dataops_e2e_pipeline`
+
+US-08 chain:
+`ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda -> generate_eda_images_report`
+
+### 7. Run Airflow on Windows (recommended via Docker)
+
+Native Windows Airflow may fail due `fcntl` import errors. Use Docker Airflow:
+
+```cmd
+docker run --name airflow-us8 --rm -it -p 8080:8080 ^
+  -v "%cd%:/opt/project" ^
+  -e AIRFLOW__CORE__DAGS_FOLDER=/opt/project/source/dataops/airflow/dags ^
+  -e PROJECT_ROOT=/opt/project ^
+  -e POSTGRES_HOST=host.docker.internal ^
+  -e POSTGRES_PORT=5433 ^
+  -e POSTGRES_DB=kkbox ^
+  -e POSTGRES_USER=bt4301 ^
+  -e POSTGRES_PASSWORD=bt4301pass ^
+  apache/airflow:2.9.3 ^
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
+```
+
+Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+
+### 8. Run Airflow on macOS (Docker)
+
+Use Docker Airflow similarly on macOS:
 
 ```bash
-pip install apache-airflow
-airflow db migrate # initialise the Airflow metadata DB
+docker run --name airflow-us8 --rm -it -p 8080:8080 \
+  -v "$(pwd):/opt/project" \
+  -e AIRFLOW__CORE__DAGS_FOLDER=/opt/project/source/dataops/airflow/dags \
+  -e PROJECT_ROOT=/opt/project \
+  -e POSTGRES_HOST=host.docker.internal \
+  -e POSTGRES_PORT=5433 \
+  -e POSTGRES_DB=kkbox \
+  -e POSTGRES_USER=bt4301 \
+  -e POSTGRES_PASSWORD=bt4301pass \
+  apache/airflow:2.9.3 \
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
 ```
 
-Point Airflow at the project DAGs folder:
-
-```bash
-export AIRFLOW**CORE**DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
-```
-
-Start the scheduler and web server (two separate terminals, or background):
-
-```bash
-airflow scheduler &
-airflow webserver --port 8080 &
-```
-
-Trigger the DAG from the UI at http://localhost:8080, or via CLI:
-
-```bash
-airflow dags trigger us6_transform_and_track_lineage
-```
-
-Verify lineage records were written to PostgreSQL:
-
-```sql
-SELECT * FROM processed.data_lineage ORDER BY created_at DESC LIMIT 10;
-```
-
-Expected: 21 rows — one per feature column in `processed.customer_features`.
-
-To reset and re-run the full pipeline from scratch:
-
-```bash
-docker compose down -v   # wipes the Postgres volume
-docker compose up -d
-python source/dataops/load_raw_data.py
-python source/dataops/build_customer_features.py
-```
+Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
