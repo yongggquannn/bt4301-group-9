@@ -4,6 +4,7 @@ US-4: Builds processed.customer_features from the four raw KKBox tables.
 Run this script AFTER:
   1. Docker Postgres container is up   (docker compose up -d)
   2. Raw CSV data has been loaded into raw.*
+  3. cleanse_data.py has been run to verify the raw tables are clean and ready.
 
 Usage:
     python source/dataops/build_customer_features.py

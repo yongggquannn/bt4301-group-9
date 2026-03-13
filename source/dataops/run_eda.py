@@ -1,8 +1,10 @@
 """
-Notebook-parity EDA script based on `data_cleaning_eda.ipynb`.
+US-5: Runs EDA on `data/processed/df_train_final.csv` and exports artifacts to `data/processed/eda/`.
 
-Reads `data/processed/df_train_final.csv`, reproduces key EDA outputs,
-and saves artifacts under `data/processed/eda/`.
+Run this script AFTER `generate_lineage.py`.
+
+Usage:
+    python source/dataops/run_eda.py
 """
 
 from __future__ import annotations

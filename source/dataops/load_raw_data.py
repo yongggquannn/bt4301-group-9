@@ -1,7 +1,7 @@
 """
 Loads raw KKBox CSV files into the raw.* PostgreSQL tables using COPY.
 
-Run this AFTER `docker compose up -d` and BEFORE `build_customer_features.py`.
+Run this AFTER `docker compose up -d` and BEFORE `cleanse_data.py`.
 
 Usage:
     python source/dataops/load_raw_data.py

@@ -104,6 +104,7 @@ python source/dataops/cleanse_data.py
 python source/dataops/build_customer_features.py
 python source/dataops/generate_lineage.py
 python source/dataops/run_eda.py
+python source/dataops/generate_eda_images_report.py
 ```
 
 What each script does:
@@ -113,6 +114,7 @@ What each script does:
 - `build_customer_features.py`: refreshes `processed.customer_features`
 - `generate_lineage.py`: refreshes `processed.data_lineage`
 - `run_eda.py`: writes EDA outputs to `data/processed/eda/`
+- `generate_eda_images_report.py`: generates 13 EDA charts and HTML report with those charts to `data/processed/eda/`
 
 ### 5. Validate SQL outputs
 
@@ -157,7 +159,7 @@ Current DAGs:
 - `us8_dataops_e2e_pipeline`
 
 US-08 chain:
-`ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda`
+`ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda -> generate_eda_images_report`
 
 ### 7. Run Airflow on Windows (recommended via Docker)
 
@@ -174,6 +176,26 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 ^
   -e POSTGRES_USER=bt4301 ^
   -e POSTGRES_PASSWORD=bt4301pass ^
   apache/airflow:2.9.3 ^
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
+```
+
+Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+
+### 8. Run Airflow on macOS (Docker)
+
+Use Docker Airflow similarly on macOS:
+
+```bash
+docker run --name airflow-us8 --rm -it -p 8080:8080 \
+  -v "$(pwd):/opt/project" \
+  -e AIRFLOW__CORE__DAGS_FOLDER=/opt/project/source/dataops/airflow/dags \
+  -e PROJECT_ROOT=/opt/project \
+  -e POSTGRES_HOST=host.docker.internal \
+  -e POSTGRES_PORT=5433 \
+  -e POSTGRES_DB=kkbox \
+  -e POSTGRES_USER=bt4301 \
+  -e POSTGRES_PASSWORD=bt4301pass \
+  apache/airflow:2.9.3 \
   bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
 ```
 
