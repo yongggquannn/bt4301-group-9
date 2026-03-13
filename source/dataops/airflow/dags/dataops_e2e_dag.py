@@ -2,10 +2,10 @@
 Airflow DAG: end-to-end DataOps orchestration.
 
 Task chain:
-    ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda
+    ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda -> generate_eda_images_report
 
 Notes:
-    - `cleanse` and `trigger_eda` run project scripts.
+    - `cleanse`, `trigger_eda`, and `generate_eda_images_report` run project scripts.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ CLEANSE_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "cleanse_data.py"
 TRANSFORM_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "build_customer_features.py"
 LINEAGE_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "generate_lineage.py"
 EDA_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "run_eda.py"
+EDA_IMAGES_REPORT_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "generate_eda_images_report.py"
 
 
 def run_python_script(script_path: Path) -> None:
@@ -74,7 +75,11 @@ def us8_dataops_e2e_pipeline():
     def trigger_eda():
         run_python_script(EDA_SCRIPT)
 
-    ingest_raw() >> cleanse() >> transform_features() >> track_lineage() >> trigger_eda()
+    @task(task_id="generate_eda_images_report")
+    def generate_eda_images_report():
+        run_python_script(EDA_IMAGES_REPORT_SCRIPT)
+
+    ingest_raw() >> cleanse() >> transform_features() >> track_lineage() >> trigger_eda() >> generate_eda_images_report()
 
 
 dag = us8_dataops_e2e_pipeline()

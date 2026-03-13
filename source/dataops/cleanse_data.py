@@ -1,8 +1,10 @@
 """
-Notebook-parity cleansing script based on `data_cleaning_eda.ipynb`.
+US-3: Cleans and merges raw KKBox CSV files into `data/processed/df_train_final.csv`.
 
-This mirrors the notebook cleaning/merging feature-prep steps and writes:
-    data/processed/df_train_final.csv
+Run this script AFTER raw files are available in `data/raw/` and BEFORE `build_customer_features.py`.
+
+Usage:
+    python source/dataops/cleanse_data.py
 """
 
 from __future__ import annotations
