@@ -1,0 +1,11 @@
+[2026-03-19T22:21:23.806+0800] {processor.py:161} INFO - Started process (PID=48487) to work on /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_dynamic_task_mapping.py
+[2026-03-19T22:21:23.806+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_dynamic_task_mapping.py for tasks to queue
+[2026-03-19T22:21:23.807+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:23.807+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_dynamic_task_mapping.py
+[2026-03-19T22:21:23.832+0800] {processor.py:840} INFO - DAG(s) 'example_dynamic_task_mapping' retrieved from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_dynamic_task_mapping.py
+[2026-03-19T22:21:23.933+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:23.933+0800] {override.py:1930} INFO - Created Permission View: can edit on DAG:example_dynamic_task_mapping
+[2026-03-19T22:21:23.941+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:23.941+0800] {override.py:1930} INFO - Created Permission View: can read on DAG:example_dynamic_task_mapping
+[2026-03-19T22:21:23.947+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:23.947+0800] {override.py:1930} INFO - Created Permission View: can delete on DAG:example_dynamic_task_mapping
+[2026-03-19T22:21:23.947+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:23.947+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-19T22:21:23.953+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:23.952+0800] {dag.py:3111} INFO - Creating ORM DAG for example_dynamic_task_mapping
+[2026-03-19T22:21:23.960+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:23.959+0800] {dag.py:3947} INFO - Setting next_dagrun for example_dynamic_task_mapping to 2022-03-04 00:00:00+00:00, run_after=2022-03-05 00:00:00+00:00
+[2026-03-19T22:21:23.970+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_dynamic_task_mapping.py took 0.167 seconds

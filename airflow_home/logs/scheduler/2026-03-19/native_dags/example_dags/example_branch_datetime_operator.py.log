@@ -1,0 +1,21 @@
+[2026-03-19T22:21:51.754+0800] {processor.py:161} INFO - Started process (PID=48842) to work on /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_branch_datetime_operator.py
+[2026-03-19T22:21:51.755+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_branch_datetime_operator.py for tasks to queue
+[2026-03-19T22:21:51.756+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:51.756+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_branch_datetime_operator.py
+[2026-03-19T22:21:51.786+0800] {processor.py:840} INFO - DAG(s) 'example_branch_datetime_operator_2', 'example_branch_datetime_operator', 'example_branch_datetime_operator_3' retrieved from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_branch_datetime_operator.py
+[2026-03-19T22:21:52.139+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.138+0800] {override.py:1930} INFO - Created Permission View: can delete on DAG:example_branch_datetime_operator_2
+[2026-03-19T22:21:52.151+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.151+0800] {override.py:1930} INFO - Created Permission View: can edit on DAG:example_branch_datetime_operator_2
+[2026-03-19T22:21:52.160+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.160+0800] {override.py:1930} INFO - Created Permission View: can read on DAG:example_branch_datetime_operator_2
+[2026-03-19T22:21:52.177+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.177+0800] {override.py:1930} INFO - Created Permission View: can delete on DAG:example_branch_datetime_operator
+[2026-03-19T22:21:52.187+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.186+0800] {override.py:1930} INFO - Created Permission View: can edit on DAG:example_branch_datetime_operator
+[2026-03-19T22:21:52.193+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.193+0800] {override.py:1930} INFO - Created Permission View: can read on DAG:example_branch_datetime_operator
+[2026-03-19T22:21:52.213+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.212+0800] {override.py:1930} INFO - Created Permission View: can delete on DAG:example_branch_datetime_operator_3
+[2026-03-19T22:21:52.221+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.221+0800] {override.py:1930} INFO - Created Permission View: can edit on DAG:example_branch_datetime_operator_3
+[2026-03-19T22:21:52.228+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.227+0800] {override.py:1930} INFO - Created Permission View: can read on DAG:example_branch_datetime_operator_3
+[2026-03-19T22:21:52.228+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.228+0800] {dag.py:3089} INFO - Sync 3 DAGs
+[2026-03-19T22:21:52.243+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.243+0800] {dag.py:3111} INFO - Creating ORM DAG for example_branch_datetime_operator_2
+[2026-03-19T22:21:52.247+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.246+0800] {dag.py:3111} INFO - Creating ORM DAG for example_branch_datetime_operator_3
+[2026-03-19T22:21:52.247+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.247+0800] {dag.py:3111} INFO - Creating ORM DAG for example_branch_datetime_operator
+[2026-03-19T22:21:52.260+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.260+0800] {dag.py:3947} INFO - Setting next_dagrun for example_branch_datetime_operator to 2026-03-18 00:00:00+00:00, run_after=2026-03-19 00:00:00+00:00
+[2026-03-19T22:21:52.263+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.263+0800] {dag.py:3947} INFO - Setting next_dagrun for example_branch_datetime_operator_2 to 2026-03-18 00:00:00+00:00, run_after=2026-03-19 00:00:00+00:00
+[2026-03-19T22:21:52.265+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:52.265+0800] {dag.py:3947} INFO - Setting next_dagrun for example_branch_datetime_operator_3 to 2026-03-18 00:00:00+00:00, run_after=2026-03-19 00:00:00+00:00
+[2026-03-19T22:21:52.302+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_branch_datetime_operator.py took 0.555 seconds

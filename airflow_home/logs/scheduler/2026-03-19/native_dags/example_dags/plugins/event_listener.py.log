@@ -1,0 +1,5 @@
+[2026-03-19T22:20:07.310+0800] {processor.py:161} INFO - Started process (PID=47399) to work on /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/plugins/event_listener.py
+[2026-03-19T22:20:07.312+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/plugins/event_listener.py for tasks to queue
+[2026-03-19T22:20:07.312+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:07.312+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/plugins/event_listener.py
+[2026-03-19T22:20:07.313+0800] {processor.py:842} WARNING - No viable dags retrieved from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/plugins/event_listener.py
+[2026-03-19T22:20:07.352+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/plugins/event_listener.py took 0.044 seconds

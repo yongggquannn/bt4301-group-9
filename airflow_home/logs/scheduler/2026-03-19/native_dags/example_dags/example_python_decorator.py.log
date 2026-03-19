@@ -1,0 +1,12 @@
+[2026-03-19T22:21:00.794+0800] {processor.py:161} INFO - Started process (PID=48226) to work on /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_python_decorator.py
+[2026-03-19T22:21:00.794+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_python_decorator.py for tasks to queue
+[2026-03-19T22:21:00.794+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.794+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_python_decorator.py
+[2026-03-19T22:21:00.810+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.810+0800] {example_python_decorator.py:80} WARNING - The virtalenv_python example task requires virtualenv, please install it.
+[2026-03-19T22:21:00.811+0800] {processor.py:840} INFO - DAG(s) 'example_python_decorator' retrieved from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_python_decorator.py
+[2026-03-19T22:21:00.884+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.884+0800] {override.py:1930} INFO - Created Permission View: can edit on DAG:example_python_decorator
+[2026-03-19T22:21:00.888+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.888+0800] {override.py:1930} INFO - Created Permission View: can read on DAG:example_python_decorator
+[2026-03-19T22:21:00.890+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.890+0800] {override.py:1930} INFO - Created Permission View: can delete on DAG:example_python_decorator
+[2026-03-19T22:21:00.890+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.890+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-19T22:21:00.894+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.894+0800] {dag.py:3111} INFO - Creating ORM DAG for example_python_decorator
+[2026-03-19T22:21:00.894+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:21:00.894+0800] {dag.py:3947} INFO - Setting next_dagrun for example_python_decorator to None, run_after=None
+[2026-03-19T22:21:00.901+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_python_decorator.py took 0.109 seconds

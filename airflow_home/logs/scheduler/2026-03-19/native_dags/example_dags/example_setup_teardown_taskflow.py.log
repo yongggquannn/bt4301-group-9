@@ -1,0 +1,11 @@
+[2026-03-19T22:20:50.826+0800] {processor.py:161} INFO - Started process (PID=48104) to work on /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_setup_teardown_taskflow.py
+[2026-03-19T22:20:50.827+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_setup_teardown_taskflow.py for tasks to queue
+[2026-03-19T22:20:50.827+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:50.827+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_setup_teardown_taskflow.py
+[2026-03-19T22:20:50.845+0800] {processor.py:840} INFO - DAG(s) 'example_setup_teardown_taskflow' retrieved from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_setup_teardown_taskflow.py
+[2026-03-19T22:20:50.921+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:50.920+0800] {override.py:1930} INFO - Created Permission View: can edit on DAG:example_setup_teardown_taskflow
+[2026-03-19T22:20:50.927+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:50.927+0800] {override.py:1930} INFO - Created Permission View: can read on DAG:example_setup_teardown_taskflow
+[2026-03-19T22:20:50.932+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:50.931+0800] {override.py:1930} INFO - Created Permission View: can delete on DAG:example_setup_teardown_taskflow
+[2026-03-19T22:20:50.932+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:50.932+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-19T22:20:50.936+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:50.936+0800] {dag.py:3111} INFO - Creating ORM DAG for example_setup_teardown_taskflow
+[2026-03-19T22:20:50.939+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:50.939+0800] {dag.py:3947} INFO - Setting next_dagrun for example_setup_teardown_taskflow to 2026-03-18 00:00:00+00:00, run_after=2026-03-19 00:00:00+00:00
+[2026-03-19T22:20:50.945+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/example_setup_teardown_taskflow.py took 0.121 seconds

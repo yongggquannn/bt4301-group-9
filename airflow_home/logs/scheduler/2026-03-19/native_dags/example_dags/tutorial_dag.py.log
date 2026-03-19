@@ -1,0 +1,11 @@
+[2026-03-19T22:20:20.638+0800] {processor.py:161} INFO - Started process (PID=47642) to work on /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/tutorial_dag.py
+[2026-03-19T22:20:20.638+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/tutorial_dag.py for tasks to queue
+[2026-03-19T22:20:20.639+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:20.638+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/tutorial_dag.py
+[2026-03-19T22:20:20.655+0800] {processor.py:840} INFO - DAG(s) 'tutorial_dag' retrieved from /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/tutorial_dag.py
+[2026-03-19T22:20:20.743+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:20.743+0800] {override.py:1930} INFO - Created Permission View: can edit on DAG:tutorial_dag
+[2026-03-19T22:20:20.749+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:20.748+0800] {override.py:1930} INFO - Created Permission View: can delete on DAG:tutorial_dag
+[2026-03-19T22:20:20.753+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:20.753+0800] {override.py:1930} INFO - Created Permission View: can read on DAG:tutorial_dag
+[2026-03-19T22:20:20.753+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:20.753+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-19T22:20:20.758+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:20.758+0800] {dag.py:3111} INFO - Creating ORM DAG for tutorial_dag
+[2026-03-19T22:20:20.758+0800] {logging_mixin.py:188} INFO - [2026-03-19T22:20:20.758+0800] {dag.py:3947} INFO - Setting next_dagrun for tutorial_dag to None, run_after=None
+[2026-03-19T22:20:20.769+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/.venv/lib/python3.10/site-packages/airflow/example_dags/tutorial_dag.py took 0.133 seconds
