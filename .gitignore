@@ -31,3 +31,4 @@ data/processed/
 
 # Local Airflow workspace (can contain secrets + logs)
 airflow_home/airflow_home/airflow.cfg
+airflow_home/airflow.cfg
