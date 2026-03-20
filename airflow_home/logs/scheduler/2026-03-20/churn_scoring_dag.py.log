@@ -212,3 +212,24 @@
 [2026-03-20T16:08:22.030+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:08:22.030+0800] {dag.py:3089} INFO - Sync 1 DAGs
 [2026-03-20T16:08:22.036+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:08:22.036+0800] {dag.py:3947} INFO - Setting next_dagrun for daily_churn_scoring to 2026-03-20 00:00:00+00:00, run_after=2026-03-21 00:00:00+00:00
 [2026-03-20T16:08:22.042+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py took 0.068 seconds
+[2026-03-20T16:08:53.337+0800] {processor.py:161} INFO - Started process (PID=27236) to work on /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:08:53.339+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py for tasks to queue
+[2026-03-20T16:08:53.339+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:08:53.339+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:08:53.355+0800] {processor.py:840} INFO - DAG(s) 'daily_churn_scoring' retrieved from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:08:53.393+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:08:53.393+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-20T16:08:53.399+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:08:53.399+0800] {dag.py:3947} INFO - Setting next_dagrun for daily_churn_scoring to 2026-03-20 00:00:00+00:00, run_after=2026-03-21 00:00:00+00:00
+[2026-03-20T16:08:53.408+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py took 0.072 seconds
+[2026-03-20T16:09:25.237+0800] {processor.py:161} INFO - Started process (PID=27740) to work on /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:09:25.239+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py for tasks to queue
+[2026-03-20T16:09:25.239+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:25.239+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:09:25.254+0800] {processor.py:840} INFO - DAG(s) 'daily_churn_scoring' retrieved from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:09:25.292+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:25.292+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-20T16:09:25.298+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:25.298+0800] {dag.py:3947} INFO - Setting next_dagrun for daily_churn_scoring to 2026-03-20 00:00:00+00:00, run_after=2026-03-21 00:00:00+00:00
+[2026-03-20T16:09:25.304+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py took 0.069 seconds
+[2026-03-20T16:09:57.369+0800] {processor.py:161} INFO - Started process (PID=28183) to work on /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:09:57.372+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py for tasks to queue
+[2026-03-20T16:09:57.372+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:57.372+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:09:57.409+0800] {processor.py:840} INFO - DAG(s) 'daily_churn_scoring' retrieved from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py
+[2026-03-20T16:09:57.493+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:57.493+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-20T16:09:57.514+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:57.513+0800] {dag.py:3947} INFO - Setting next_dagrun for daily_churn_scoring to 2026-03-20 00:00:00+00:00, run_after=2026-03-21 00:00:00+00:00
+[2026-03-20T16:09:57.526+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py took 0.159 seconds

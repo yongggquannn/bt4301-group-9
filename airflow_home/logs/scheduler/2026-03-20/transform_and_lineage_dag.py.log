@@ -205,3 +205,24 @@
 [2026-03-20T16:08:30.983+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:08:30.983+0800] {dag.py:3089} INFO - Sync 1 DAGs
 [2026-03-20T16:08:30.987+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:08:30.987+0800] {dag.py:3947} INFO - Setting next_dagrun for us6_transform_and_track_lineage to None, run_after=None
 [2026-03-20T16:08:30.994+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py took 0.071 seconds
+[2026-03-20T16:09:02.085+0800] {processor.py:161} INFO - Started process (PID=27418) to work on /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:09:02.087+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py for tasks to queue
+[2026-03-20T16:09:02.087+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:02.087+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:09:02.102+0800] {processor.py:840} INFO - DAG(s) 'us6_transform_and_track_lineage' retrieved from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:09:02.140+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:02.140+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-20T16:09:02.143+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:02.143+0800] {dag.py:3947} INFO - Setting next_dagrun for us6_transform_and_track_lineage to None, run_after=None
+[2026-03-20T16:09:02.149+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py took 0.065 seconds
+[2026-03-20T16:09:33.238+0800] {processor.py:161} INFO - Started process (PID=27855) to work on /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:09:33.240+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py for tasks to queue
+[2026-03-20T16:09:33.240+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:33.240+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:09:33.255+0800] {processor.py:840} INFO - DAG(s) 'us6_transform_and_track_lineage' retrieved from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:09:33.293+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:33.293+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-20T16:09:33.296+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:09:33.296+0800] {dag.py:3947} INFO - Setting next_dagrun for us6_transform_and_track_lineage to None, run_after=None
+[2026-03-20T16:09:33.303+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py took 0.066 seconds
+[2026-03-20T16:10:04.959+0800] {processor.py:161} INFO - Started process (PID=28304) to work on /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:10:04.961+0800] {processor.py:830} INFO - Processing file /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py for tasks to queue
+[2026-03-20T16:10:04.961+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:10:04.961+0800] {dagbag.py:545} INFO - Filling up the DagBag from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:10:04.999+0800] {processor.py:840} INFO - DAG(s) 'us6_transform_and_track_lineage' retrieved from /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py
+[2026-03-20T16:10:05.090+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:10:05.089+0800] {dag.py:3089} INFO - Sync 1 DAGs
+[2026-03-20T16:10:05.096+0800] {logging_mixin.py:188} INFO - [2026-03-20T16:10:05.096+0800] {dag.py:3947} INFO - Setting next_dagrun for us6_transform_and_track_lineage to None, run_after=None
+[2026-03-20T16:10:05.107+0800] {processor.py:183} INFO - Processing /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py took 0.150 seconds

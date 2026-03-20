@@ -302,3 +302,33 @@ File Path                                                                       
 /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py                           1           0  1.26s           2026-03-20T08:07:59
 /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py                                   1           0  1.15s           2026-03-20T08:08:22
 ================================================================================
+[2026-03-20T16:08:53.514+0800] {manager.py:878} INFO - 
+================================================================================
+DAG File Processing Stats
+
+File Path                                                                                          PID    Runtime      # DAGs    # Errors  Last Runtime    Last Run
+-------------------------------------------------------------------------------------------------  -----  ---------  --------  ----------  --------------  -------------------
+/Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py                                   1           0  1.31s           2026-03-20T08:08:53
+/Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py                           1           0  1.12s           2026-03-20T08:08:31
+================================================================================
+[2026-03-20T16:09:25.406+0800] {manager.py:878} INFO - 
+================================================================================
+DAG File Processing Stats
+
+File Path                                                                                          PID    Runtime      # DAGs    # Errors  Last Runtime    Last Run
+-------------------------------------------------------------------------------------------------  -----  ---------  --------  ----------  --------------  -------------------
+/Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py                                   1           0  1.10s           2026-03-20T08:09:25
+/Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py                           1           0  1.09s           2026-03-20T08:09:02
+================================================================================
+[2026-03-20T16:09:39.564+0800] {manager.py:737} INFO - Searching for files in /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags
+[2026-03-20T16:09:39.567+0800] {manager.py:740} INFO - There are 2 files in /Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags
+[2026-03-20T16:09:57.690+0800] {manager.py:878} INFO - 
+================================================================================
+DAG File Processing Stats
+
+File Path                                                                                          PID    Runtime      # DAGs    # Errors  Last Runtime    Last Run
+-------------------------------------------------------------------------------------------------  -----  ---------  --------  ----------  --------------  -------------------
+/Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/churn_scoring_dag.py                                   1           0  2.10s           2026-03-20T08:09:57
+/Users/lershuan/Downloads/bt4301-group-9/source/dataops/airflow/dags/transform_and_lineage_dag.py                           1           0  1.09s           2026-03-20T08:09:33
+================================================================================
+[2026-03-20T16:10:10.661+0800] {manager.py:452} INFO - Exiting gracefully upon receiving signal 15
