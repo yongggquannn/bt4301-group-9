@@ -31,3 +31,13 @@ Thumbs.db
 
 data/raw/
 data/processed/
+
+# Local Airflow workspace (can contain secrets + logs)
+airflow_home/
+
+# Local MLflow tracking output
+mlruns/
+mlflow.db
+
+# Generated evidence outputs (optional to commit)
+docs/artifacts/
