@@ -4,3 +4,6 @@ kaggle
 pandas
 psycopg2-binary
 apache-airflow
+scikit-learn
+mlflow
+imbalanced-learn

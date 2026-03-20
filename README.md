@@ -170,3 +170,15 @@ docker compose up -d
 python source/dataops/load_raw_data.py
 python source/dataops/build_customer_features.py
 ```
+
+### 7. Handle class imbalance (US-18)
+
+Runs two MLflow experiments comparing:
+1. SMOTE oversampling
+2. `class_weight="balanced"` model training
+
+```bash
+python source/mlops/train_us18_class_imbalance.py
+```
+
+Evidence artifacts are written to `docs/artifacts/` and also logged to MLflow.
