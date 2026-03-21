@@ -10,17 +10,18 @@ Usage:
 from __future__ import annotations
 
 import os
+import sys
 
 import matplotlib
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
+sys.path.insert(0, os.path.dirname(__file__))
 import export_eda_report
-
-
-matplotlib.use("Agg")
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "raw")
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "processed")

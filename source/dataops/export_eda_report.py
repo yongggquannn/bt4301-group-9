@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import html
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -68,7 +68,7 @@ def image_html(image_name: str, title: str) -> str:
 def build_report() -> str:
     csv_section = "\n".join(csv_table_html(name) for name in CSV_FILES)
     image_section = "\n".join(image_html(name, title) for name, title in IMAGE_FILES)
-    generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     return f"""<!doctype html>
 <html lang="en">

@@ -80,7 +80,7 @@ def main() -> None:
             last_plan_days = last_date["payment_plan_days"].values.max()
             last_plan_price = last_date["plan_list_price"].values.max()
         canceled = msno_group.is_cancel.values
-        is_cancel = 0 if 1 in canceled else 1
+        is_cancel = 1 if 1 in canceled else 0
         no_of_transactions = len(msno_group)
         pointer = len(df_transaction_uniq)
         df_transaction_uniq.loc[pointer] = [
@@ -126,7 +126,7 @@ def main() -> None:
     print("\n[4/6] Cleaning member age field (bd)...")
     df_member.loc[df_member.bd < 18, "bd"] = np.nan
     df_member.loc[df_member.bd > 90, "bd"] = np.nan
-    df_member["bd"].fillna(df_member["bd"].median(), inplace=True)
+    df_member["bd"] = df_member["bd"].fillna(df_member["bd"].median())
 
     # Merge members with transaction aggregates (notebook cell 33).
     print("\n[5/6] Building merged training dataset...")
