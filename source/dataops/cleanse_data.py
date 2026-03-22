@@ -24,7 +24,7 @@ def main() -> None:
     print("Cleansing and preparing df_train_final")
     print("=" * 60)
 
-    # Load raw CSV tables (notebook cell 1).
+    # Load raw CSV tables.
     print("\n[1/6] Loading raw CSV files...")
     df_train = pd.read_csv(os.path.join(DATA_DIR, "train_v2.csv"))
     df_member = pd.read_csv(os.path.join(DATA_DIR, "members_v3.csv"))
@@ -32,14 +32,14 @@ def main() -> None:
     df_log = pd.read_csv(os.path.join(DATA_DIR, "user_logs_v2.csv"))
     print("  Raw files loaded.")
 
-    # Replace low-frequency payment methods with a collective code (notebook cell 12).
+    # Replace low-frequency payment methods with a collective code.
     print("\n[2/6] Normalizing low-frequency payment methods...")
     df_transaction.payment_method_id = df_transaction.payment_method_id.replace(
         [3, 6, 8, 10, 11, 12, 13, 14, 16, 18, 20, 22, 26], 1
     )
     df_transaction.payment_method_id = df_transaction.payment_method_id.astype("category")
 
-    # Process duplicate msno in transactions (notebook cell 16).
+    # Process duplicate msno in transactions.
     print("\n[3/6] Aggregating transaction duplicates...")
     df_duplicate_msno = df_transaction[df_transaction.duplicated(subset=["msno"])]
     duplicated_msno = df_duplicate_msno.msno.unique()
@@ -99,7 +99,7 @@ def main() -> None:
             no_of_transactions,
         ]
 
-    # Add single-transaction users back after duplicate aggregation (notebook cells 17, 19, 20).
+    # Add single-transaction users back after duplicate aggregation.
     single_msno = df_transaction[~df_transaction.duplicated(subset=["msno"], keep=False)]
     single_msno_processed = pd.DataFrame(
         {
@@ -122,16 +122,16 @@ def main() -> None:
     df_transaction_final = pd.concat([df_transaction_uniq, single_msno_processed], ignore_index=True)
     print(f"  Transaction rows after processing: {len(df_transaction_final):,}")
 
-    # Clean member age outliers and median-impute bd (notebook cell 30).
+    # Clean member age outliers and median-impute bd.
     print("\n[4/6] Cleaning member age field (bd)...")
     df_member.loc[df_member.bd < 18, "bd"] = np.nan
     df_member.loc[df_member.bd > 90, "bd"] = np.nan
     df_member["bd"] = df_member["bd"].fillna(df_member["bd"].median())
 
-    # Merge members with transaction aggregates (notebook cell 33).
+    # Merge members with transaction aggregates.
     print("\n[5/6] Building merged training dataset...")
     df_member_transaction = pd.merge(df_member, df_transaction_final, how="inner", on="msno")
-    # Cast date-like integer fields to datetime (notebook cell 35).
+    # Cast date-like integer fields to datetime.
     df_member_transaction["registration_init_time"] = pd.to_datetime(
         df_member_transaction["registration_init_time"], format="%Y%m%d"
     )
@@ -144,12 +144,12 @@ def main() -> None:
     df_member_transaction["membership_expire_date"] = pd.to_datetime(
         df_member_transaction["membership_expire_date"], format="%Y%m%d"
     )
-    # Drop gender column after merge (notebook cell 37).
+    # Drop gender column after merge.
     df_member_transaction = df_member_transaction.drop(columns=["gender"])
-    # Merge churn labels with member+transaction data (notebook cell 39).
+    # Merge churn labels with member+transaction data.
     df_train_final = pd.merge(df_train, df_member_transaction, how="inner", on="msno")
 
-    # Expand date components (notebook cell 40).
+    # Expand date components.
     date_columns = [
         "registration_init_time",
         "first_transaction_date",
@@ -161,14 +161,14 @@ def main() -> None:
         df_train_final[f"{col}_month"] = df_train_final[col].dt.month
         df_train_final[f"{col}_day"] = df_train_final[col].dt.day
 
-    # Build duration features (notebook cell 41).
+    # Build duration features.
     df_train_final["membership_duration_days"] = (
         df_train_final["membership_expire_date"] - df_train_final["registration_init_time"]
     ).dt.days
     df_train_final["transaction_span_days"] = (
         df_train_final["last_transaction_date"] - df_train_final["first_transaction_date"]
     ).dt.days
-    # Build price/plan features and remove intermediate columns (notebook cell 42).
+    # Build price/plan features and remove intermediate columns.
     df_train_final["avg_plan_price"] = (
         df_train_final["total_plan_list_price"] / df_train_final["no_of_transactions"]
     )
@@ -206,11 +206,11 @@ def main() -> None:
         ]
     )
 
-    # Keep notebook parity by touching df_log in pipeline context (loaded in notebook cell 1).
+    # Log user_logs row count (not merged into df_train_final but loaded for pipeline completeness).
     print(f"user_logs rows loaded (not merged in df_train_final path): {len(df_log):,}")
 
     os.makedirs(PROCESSED_DIR, exist_ok=True)
-    # Save final cleaned/engineered table (notebook cell 60).
+    # Save final cleaned/engineered table.
     print("\n[6/6] Saving df_train_final.csv...")
     output_path = os.path.join(PROCESSED_DIR, "df_train_final.csv")
     df_train_final.to_csv(output_path, index=False)

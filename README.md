@@ -110,7 +110,7 @@ python source/dataops/generate_eda_images_report.py
 What each script does:
 
 - `load_raw_data.py`: loads `data/raw/*.csv` into `raw.*`
-- `cleanse_data.py`: notebook-parity cleansing/prep and writes `data/processed/df_train_final.csv`
+- `cleanse_data.py`: cleansing/prep and writes `data/processed/df_train_final.csv`
 - `build_customer_features.py`: refreshes `processed.customer_features`
 - `generate_lineage.py`: refreshes `processed.data_lineage`
 - `run_eda.py`: writes EDA outputs to `data/processed/eda/`
@@ -200,3 +200,35 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 \
 ```
 
 Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+
+### 9. Run Airflow on macOS (native)
+
+1. Install Airflow in a virtual environment:
+
+```bash
+export AIRFLOW_HOME=~/airflow
+pip install "apache-airflow==2.9.3" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.10.txt"
+```
+
+2. Initialise the database and create an admin user:
+
+```bash
+airflow db migrate
+airflow users create --username admin --password admin \
+  --firstname Admin --lastname User --role Admin --email admin@example.com
+```
+
+3. Set environment variables and start Airflow:
+
+```bash
+export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
+export PROJECT_ROOT=$(pwd)
+export POSTGRES_HOST=127.0.0.1
+export POSTGRES_PORT=5432
+export POSTGRES_DB=kkbox
+export POSTGRES_USER=bt4301
+export POSTGRES_PASSWORD=bt4301pass
+airflow standalone
+```
+
+4. Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.

@@ -40,18 +40,18 @@ def main() -> None:
     print(f"  Loaded {len(df_train_final):,} rows.")
 
     print("\n[2/4] Computing summary churn metrics...")
-    # Overall churn rate (notebook cell 45).
+    # Overall churn rate.
     overall_churn_rate = df_train_final["is_churn"].mean()
     print(f"Overall Churn Rate: {overall_churn_rate:.4f}")
 
-    # Churn rate by city (notebook cell 46).
+    # Churn rate by city.
     churn_rate_by_city = (
         df_train_final.groupby("city")["is_churn"].mean().sort_values(ascending=False)
     )
     print("Churn Rate by City:\n", churn_rate_by_city)
     churn_rate_by_city.to_csv(os.path.join(EDA_DIR, "churn_rate_by_city.csv"), header=True)
 
-    # Churn rate by average plan days (notebook cell 47).
+    # Churn rate by average plan days.
     churn_rate_by_payment_plan = (
         df_train_final.groupby("avg_plan_days")["is_churn"].mean().sort_values(ascending=False)
     )
@@ -60,7 +60,7 @@ def main() -> None:
         os.path.join(EDA_DIR, "churn_rate_by_avg_plan_days.csv"), header=True
     )
 
-    # Churn rate by payment method (notebook cell 48).
+    # Churn rate by payment method.
     churn_rate_by_payment_method = (
         df_train_final.groupby("payment_method_id")["is_churn"].mean().sort_values(ascending=False)
     )
@@ -70,7 +70,7 @@ def main() -> None:
     )
 
     print("\n[3/4] Generating EDA visualizations...")
-    # Top-variance numeric feature distributions (notebook cell 51).
+    # Top-variance numeric feature distributions.
     numeric_features = df_train_final.select_dtypes(include=["number"]).drop(columns=["is_churn"])
     top_10 = numeric_features.var().sort_values(ascending=False).head(10).index.tolist()
     fig, axes = plt.subplots(2, 5, figsize=(22, 8))
@@ -84,7 +84,7 @@ def main() -> None:
     plt.savefig(os.path.join(EDA_DIR, "top10_numeric_distributions.png"), dpi=150)
     plt.close(fig)
 
-    # Numeric feature correlation heatmap (notebook cell 54).
+    # Numeric feature correlation heatmap.
     numeric_df = df_train_final.select_dtypes(include=["number"]).drop(columns=["is_churn"])
     correlation_matrix = numeric_df.corr()
     plt.figure(figsize=(20, 18))
@@ -94,12 +94,12 @@ def main() -> None:
     plt.savefig(os.path.join(EDA_DIR, "correlation_heatmap.png"), dpi=150)
     plt.close()
 
-    # Distribution of churn values (notebook cell 57).
+    # Distribution of churn values.
     churn_distribution = df_train_final["is_churn"].value_counts()
     print("Distribution of Churn (is_churn):\n", churn_distribution)
     churn_distribution.to_csv(os.path.join(EDA_DIR, "churn_distribution.csv"), header=True)
 
-    # Churn count plot (notebook cell 58).
+    # Churn count plot.
     plt.figure(figsize=(6, 4))
     sns.countplot(x="is_churn", data=df_train_final)
     plt.title("Distribution of Churn (is_churn)")
