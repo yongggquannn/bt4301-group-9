@@ -1,7 +1,7 @@
 """
 Loads raw KKBox CSV files into the raw.* PostgreSQL tables using COPY.
 
-Run this AFTER `docker compose up -d` and BEFORE `build_customer_features.py`.
+Run this AFTER `docker compose up -d` and BEFORE `cleanse_data.py`.
 
 Usage:
     python source/dataops/load_raw_data.py
@@ -72,9 +72,9 @@ def load_table(cur, csv_file, table, columns):
 
 
 def main():
-    print("=" * 50)
+    print("=" * 60)
     print("Loading raw KKBox CSVs into PostgreSQL")
-    print("=" * 50)
+    print("=" * 60)
 
     conn = psycopg2.connect(**DB_CONFIG)
     conn.autocommit = False
@@ -93,9 +93,9 @@ def main():
         cur.close()
         conn.close()
 
-    print("\n" + "=" * 50)
-    print("Done. Run build_customer_features.py next.")
-    print("=" * 50)
+    print("\n" + "=" * 60)
+    print("Done. Run cleanse_data.py next.")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
