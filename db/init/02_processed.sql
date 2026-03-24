@@ -34,3 +34,11 @@ CREATE TABLE IF NOT EXISTS processed.data_lineage (
     transformation_rule TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS processed.churn_predictions (
+    customer_id       TEXT        NOT NULL,
+    churn_probability NUMERIC     NOT NULL,
+    risk_tier         VARCHAR(16) NOT NULL,
+    scored_at         TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (customer_id, scored_at)
+);

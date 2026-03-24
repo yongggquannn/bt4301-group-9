@@ -116,6 +116,16 @@ What each script does:
 - `run_eda.py`: writes EDA outputs to `data/processed/eda/`
 - `generate_eda_images_report.py`: generates 13 EDA charts and HTML report with those charts to `data/processed/eda/`
 
+### 5. Feature selection + importance (MLflow)
+
+This step performs **permutation importance** analysis and selects a final non-redundant feature set from the feature store. It also logs the resulting feature list as an **MLflow artifact**.
+
+```bash
+python source/mlops/feature_selection.py
+```
+
+Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` by default).
+
 ### 5. Validate SQL outputs
 
 ```sql
@@ -232,3 +242,15 @@ airflow standalone
 ```
 
 4. Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+
+### 10. Handle class imbalance (US-18)
+
+Runs two MLflow experiments comparing:
+1. SMOTE oversampling
+2. `class_weight="balanced"` model training
+
+```bash
+python source/mlops/train_us18_class_imbalance.py
+```
+
+Evidence artifacts are written to `docs/artifacts/` and also logged to MLflow.
