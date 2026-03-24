@@ -116,6 +116,16 @@ What each script does:
 - `run_eda.py`: writes EDA outputs to `data/processed/eda/`
 - `generate_eda_images_report.py`: generates 13 EDA charts and HTML report with those charts to `data/processed/eda/`
 
+### 5. Feature selection + importance (MLflow)
+
+This step performs **permutation importance** analysis and selects a final non-redundant feature set from the feature store. It also logs the resulting feature list as an **MLflow artifact**.
+
+```bash
+python source/mlops/feature_selection.py
+```
+
+Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` by default).
+
 ### 5. Validate SQL outputs
 
 ```sql
