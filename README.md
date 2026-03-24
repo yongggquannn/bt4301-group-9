@@ -126,7 +126,7 @@ python source/mlops/feature_selection.py
 
 Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` by default).
 
-### 5. Validate SQL outputs
+### 6. Validate SQL outputs
 
 ```sql
 SELECT COUNT(*) AS raw_train_rows FROM raw.train;
@@ -161,17 +161,18 @@ Expected:
 - `missing_in_lineage = 0`
 - `extra_in_lineage = 0`
 
-### 6. Airflow DAGs
+### 7. Airflow DAGs
 
 Current DAGs:
 
 - `us6_transform_and_track_lineage`
 - `us8_dataops_e2e_pipeline`
+- `daily_churn_scoring` (US-13)
 
 US-08 chain:
 `ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda -> generate_eda_images_report`
 
-### 7. Run Airflow on Windows (recommended via Docker)
+### 8. Run Airflow on Windows (recommended via Docker)
 
 Native Windows Airflow may fail due `fcntl` import errors. Use Docker Airflow:
 
@@ -191,7 +192,7 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 ^
 
 Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
 
-### 8. Run Airflow on macOS (Docker)
+### 9. Run Airflow on macOS (Docker)
 
 Use Docker Airflow similarly on macOS:
 
@@ -211,7 +212,7 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 \
 
 Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
 
-### 9. Run Airflow on macOS (native)
+### 10. Run Airflow on macOS (native)
 
 1. Install Airflow in a virtual environment:
 
@@ -243,7 +244,7 @@ airflow standalone
 
 4. Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
 
-### 10. Handle class imbalance (US-18)
+### 11. Handle class imbalance (US-18)
 
 Runs two MLflow experiments comparing:
 1. SMOTE oversampling
