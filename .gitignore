@@ -31,6 +31,7 @@ Thumbs.db
 
 data/raw/
 data/processed/
+data/scoring/
 
 # Local Airflow workspace (can contain secrets + logs)
 airflow_home/
