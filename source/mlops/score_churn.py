@@ -145,14 +145,26 @@ def _train_fallback_model(df: pd.DataFrame) -> Pipeline:
     return pipe
 
 
+_REGISTRY_URI = "models:/KKBox-Churn-Classifier/Production"
+
+
 def _load_model_from_mlflow(df: pd.DataFrame) -> object:
     model_uri = os.getenv("MLFLOW_MODEL_URI")
+
     if not model_uri:
-        print(
-            "[load_production_model] MLFLOW_MODEL_URI not set; "
-            "training a simple fallback RandomForest model instead."
-        )
-        return _train_fallback_model(df)
+        # Try the Model Registry (US-12) before falling back to a scratch model.
+        try:
+            print(
+                f"[load_production_model] MLFLOW_MODEL_URI not set; "
+                f"trying registry at {_REGISTRY_URI}"
+            )
+            return mlflow.pyfunc.load_model(_REGISTRY_URI)
+        except mlflow.exceptions.MlflowException as exc:
+            print(
+                f"[load_production_model] Registry model not available ({exc}); "
+                "training a simple fallback RandomForest model instead."
+            )
+            return _train_fallback_model(df)
 
     print(f"[load_production_model] Loading production model from MLflow: {model_uri}")
     return mlflow.pyfunc.load_model(model_uri)

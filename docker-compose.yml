@@ -17,5 +17,23 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.10.1
+    container_name: bt4301_mlflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "pip install psycopg2-binary --quiet &&
+      mlflow server
+      --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow_db
+      --default-artifact-root mlflow-artifacts:/
+      --host 0.0.0.0
+      --port ${MLFLOW_PORT:-5001}"
+    ports:
+      - "${MLFLOW_PORT:-5001}:${MLFLOW_PORT:-5001}"
+    volumes:
+      - mlflow_artifacts:/mlruns
 volumes:
   postgres_data:
+  mlflow_artifacts:
