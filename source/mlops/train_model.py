@@ -19,34 +19,31 @@ from typing import Any, Callable
 import matplotlib
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt  # noqa: E402
-import mlflow  # noqa: E402
-import mlflow.sklearn  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-import psycopg2  # noqa: E402
-import seaborn as sns  # noqa: E402
-from imblearn.over_sampling import SMOTE  # noqa: E402
-from sklearn.compose import ColumnTransformer  # noqa: E402
-from sklearn.impute import SimpleImputer  # noqa: E402
-from sklearn.linear_model import LogisticRegression  # noqa: E402
-from sklearn.metrics import (  # noqa: E402
+import matplotlib.pyplot as plt 
+import mlflow 
+import mlflow.sklearn 
+import numpy as np 
+import pandas as pd 
+import psycopg2 
+import seaborn as sns 
+from imblearn.over_sampling import SMOTE 
+from sklearn.compose import ColumnTransformer 
+from sklearn.impute import SimpleImputer 
+from sklearn.linear_model import LogisticRegression 
+from sklearn.metrics import ( 
     confusion_matrix,
     precision_recall_fscore_support,
     roc_auc_score,
 )
-from sklearn.model_selection import train_test_split  # noqa: E402
-from sklearn.neural_network import MLPClassifier  # noqa: E402
-from sklearn.pipeline import Pipeline  # noqa: E402
-from sklearn.preprocessing import OneHotEncoder, StandardScaler  # noqa: E402
-from sklearn.utils.class_weight import compute_sample_weight  # noqa: E402
-from xgboost import XGBClassifier  # noqa: E402
+from sklearn.model_selection import train_test_split 
+from sklearn.neural_network import MLPClassifier 
+from sklearn.pipeline import Pipeline 
+from sklearn.preprocessing import OneHotEncoder, StandardScaler 
+from sklearn.utils.class_weight import compute_sample_weight 
+from xgboost import XGBClassifier 
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
 ARTIFACT_DIR = _PROJECT_ROOT / "docs" / "artifacts"
@@ -112,9 +109,6 @@ IMBALANCE_SMOTE = "smote"
 IMBALANCE_CLASS_WEIGHT = "class_weight_balanced"
 
 
-# ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class ModelConfig:
     """Declarative specification for a single model run."""
@@ -151,9 +145,6 @@ class TrainOutput:
     y_val: np.ndarray
 
 
-# ---------------------------------------------------------------------------
-# Data helpers
-# ---------------------------------------------------------------------------
 def _validate_columns(columns: list[str]) -> None:
     """Reject column names not in the known allowlist."""
     unknown = set(columns) - _KNOWN_COLUMNS
@@ -218,9 +209,6 @@ def _split_columns(
     return cat, num
 
 
-# ---------------------------------------------------------------------------
-# Preprocessing
-# ---------------------------------------------------------------------------
 def build_preprocessor(
     categorical_cols: list[str],
     numeric_cols: list[str],
@@ -247,9 +235,6 @@ def build_preprocessor(
     )
 
 
-# ---------------------------------------------------------------------------
-# Class-imbalance handling
-# ---------------------------------------------------------------------------
 def apply_imbalance(
     X: np.ndarray,
     y: np.ndarray,
@@ -276,9 +261,6 @@ def apply_imbalance(
     return X, y, weights
 
 
-# ---------------------------------------------------------------------------
-# Metrics & plots
-# ---------------------------------------------------------------------------
 def compute_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -333,9 +315,6 @@ def plot_feature_importance(
     return path
 
 
-# ---------------------------------------------------------------------------
-# Training (single generic function)
-# ---------------------------------------------------------------------------
 def train_and_evaluate(
     config: ModelConfig,
     preprocessor: ColumnTransformer,
@@ -375,9 +354,6 @@ def train_and_evaluate(
     )
 
 
-# ---------------------------------------------------------------------------
-# MLflow logging
-# ---------------------------------------------------------------------------
 def log_mlflow_run(
     experiment_name: str,
     model_name: str,
@@ -411,9 +387,6 @@ def log_mlflow_run(
         return run.info.run_id
 
 
-# ---------------------------------------------------------------------------
-# Model configs
-# ---------------------------------------------------------------------------
 def build_model_configs(
     strategy: str,
     seed: int,
@@ -492,9 +465,6 @@ def build_model_configs(
     ]
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -519,7 +489,6 @@ def main() -> None:
 
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # -- Load configuration artifacts produced by upstream user stories ------
     selected_features = load_selected_features()
     strategy = load_imbalance_strategy()
     logger.info(
@@ -527,7 +496,6 @@ def main() -> None:
     )
     logger.info("Imbalance strategy: %s", strategy)
 
-    # -- Load data -----------------------------------------------------------
     df = load_feature_store(selected_features, args.sample_rows, args.seed)
     if len(df) < 100:
         raise RuntimeError(
@@ -545,12 +513,10 @@ def main() -> None:
         X, y, test_size=args.test_size, random_state=args.seed, stratify=y,
     )
 
-    # Compute class weight for XGBoost scale_pos_weight
     neg_count = int((y_train == 0).sum())
     pos_count = int((y_train == 1).sum())
     pos_weight = neg_count / max(pos_count, 1)
 
-    # -- Build model configs -------------------------------------------------
     all_configs = build_model_configs(strategy, args.seed, pos_weight)
 
     slug_to_config = {MODEL_SLUG[c.name]: c for c in all_configs}
@@ -558,7 +524,6 @@ def main() -> None:
     if not configs:
         raise ValueError(f"No matching models for --models {args.models}")
 
-    # -- Train each model ----------------------------------------------------
     results: list[RunResult] = []
 
     for config in configs:
@@ -578,7 +543,6 @@ def main() -> None:
             threshold=args.threshold,
         )
 
-        # Artifacts
         cm_path = plot_confusion_matrix(
             output.y_val, output.y_pred, config.name,
         )
@@ -624,7 +588,6 @@ def main() -> None:
             run_id,
         )
 
-    # -- Comparison & best model ---------------------------------------------
     comparison = pd.DataFrame(
         [
             {
