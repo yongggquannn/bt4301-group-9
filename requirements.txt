@@ -10,3 +10,4 @@ apache-airflow
 scikit-learn
 mlflow
 imbalanced-learn
+xgboost

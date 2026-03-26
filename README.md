@@ -18,7 +18,7 @@ Matches the Canvas submission layout (Week 13 zip):
 │
 ├── data/                    # Submission: data subfolder
 │   ├── raw/                     # Raw datasets
-│   └── processed/                # Processed/cleaned datasets
+│   └── processed/               # Processed/cleaned datasets
 │
 ├── README.md
 └── requirements.txt
@@ -26,24 +26,36 @@ Matches the Canvas submission layout (Week 13 zip):
 
 **Note:** Remove `.gitkeep` files from `docs/`, `source/dataops/`, `source/mlops/`, `data/raw/`, and `data/processed/` before creating the final submission zip.
 
+---
+
 ## Data Setup
 
-The raw datasets (~1.9 GB) come from the [KKBox Churn Prediction Challenge](https://www.kaggle.com/c/kkbox-churn-prediction-challenge) on Kaggle and are too large to commit to Git. Use the download script to fetch them.
+The raw datasets (~1.9 GB) come from the [KKBox Churn Prediction Challenge](https://www.kaggle.com/c/kkbox-churn-prediction-challenge) on Kaggle and are too large to commit to Git.
 
 ### Prerequisites
 
-1. Install the Kaggle CLI: `pip install kaggle`
-2. Set up your Kaggle API credentials:
-   - Go to https://www.kaggle.com/settings -> **API** -> **Create New Token**
-   - Save the downloaded `kaggle.json` to `~/.kaggle/kaggle.json`
-   - Run `chmod 600 ~/.kaggle/kaggle.json`
-3. Accept the [competition rules](https://www.kaggle.com/c/kkbox-churn-prediction-challenge/rules) (required for the download API to work)
+1. Install the Kaggle CLI:
+   ```
+   pip install kaggle
+   ```
+2. Go to https://www.kaggle.com/settings → **API** → **Create New Token** and save the downloaded `kaggle.json`:
+   - **macOS/Linux:** save to `~/.kaggle/kaggle.json`, then run `chmod 600 ~/.kaggle/kaggle.json`
+   - **Windows:** save to `C:\Users\<YourUsername>\.kaggle\kaggle.json`
+3. Accept the [competition rules](https://www.kaggle.com/c/kkbox-churn-prediction-challenge/rules) (required for the download to work).
 
 ### Download
 
+**macOS/Linux:**
 ```bash
 bash data/download_data.sh
 ```
+
+**Windows (PowerShell — requires Git Bash or WSL):**
+```powershell
+bash data/download_data.sh
+```
+
+> If you don't have Git Bash or WSL, download the four CSV files manually from Kaggle and place them in `data/raw/`.
 
 This downloads and unzips the following files into `data/raw/`:
 
@@ -54,30 +66,55 @@ This downloads and unzips the following files into `data/raw/`:
 | `transactions_v2.csv` | Payment transaction history                 |
 | `user_logs_v2.csv`    | Daily listening activity logs               |
 
+---
+
 ## Running the Pipeline
 
-### 1. Start PostgreSQL
+### Step 1 — Start PostgreSQL
 
 ```bash
 docker compose up -d
 ```
 
-Starts a PostgreSQL 15 container (`bt4301_postgres`) and automatically creates all schemas and empty tables from `db/init/`. Wait for the health check:
+This starts a PostgreSQL 15 container (`bt4301_postgres`) and automatically creates all schemas and tables from `db/init/`. Wait until the container is healthy:
 
 ```bash
-docker ps  # STATUS should show "(healthy)"
+docker ps
 ```
 
-### 2. Install Python dependencies
+Look for `(healthy)` in the STATUS column. This usually takes about 15 seconds.
+
+> **Already ran this before?** If you previously started the container and see a "table not found" error later, the init scripts may not have re-run (Docker only runs them once on first volume creation). Fix it manually:
+> ```bash
+> docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/00_schemas.sql
+> docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/01_raw_tables.sql
+> docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/02_processed.sql
+> ```
+
+---
+
+### Step 2 — Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Set DB environment variables
+---
 
-PowerShell:
+### Step 3 — Set database environment variables
 
+These tell the Python scripts how to connect to the database. Set them **once per terminal session** before running any scripts.
+
+**macOS/Linux (bash/zsh):**
+```bash
+export POSTGRES_HOST=127.0.0.1
+export POSTGRES_PORT=5432
+export POSTGRES_DB=kkbox
+export POSTGRES_USER=bt4301
+export POSTGRES_PASSWORD=bt4301pass
+```
+
+**Windows — PowerShell:**
 ```powershell
 $env:POSTGRES_HOST="127.0.0.1"
 $env:POSTGRES_PORT="5432"
@@ -86,8 +123,7 @@ $env:POSTGRES_USER="bt4301"
 $env:POSTGRES_PASSWORD="bt4301pass"
 ```
 
-CMD:
-
+**Windows — Command Prompt (CMD):**
 ```cmd
 set POSTGRES_HOST=127.0.0.1
 set POSTGRES_PORT=5432
@@ -96,7 +132,11 @@ set POSTGRES_USER=bt4301
 set POSTGRES_PASSWORD=bt4301pass
 ```
 
-### 4. Run full script pipeline
+---
+
+### Step 4 — Run the DataOps pipeline
+
+Run these scripts **in order** from the project root. The commands are the same on macOS and Windows.
 
 ```bash
 python source/dataops/load_raw_data.py
@@ -109,24 +149,56 @@ python source/dataops/generate_eda_images_report.py
 
 What each script does:
 
-- `load_raw_data.py`: loads `data/raw/*.csv` into `raw.*`
-- `cleanse_data.py`: cleansing/prep and writes `data/processed/df_train_final.csv`
-- `build_customer_features.py`: refreshes `processed.customer_features`
-- `generate_lineage.py`: refreshes `processed.data_lineage`
-- `run_eda.py`: writes EDA outputs to `data/processed/eda/`
-- `generate_eda_images_report.py`: generates 13 EDA charts and HTML report with those charts to `data/processed/eda/`
+| Script                          | What it does                                                             |
+| ------------------------------- | ------------------------------------------------------------------------ |
+| `load_raw_data.py`              | Loads `data/raw/*.csv` into the `raw.*` database tables                  |
+| `cleanse_data.py`               | Cleans and prepares data; writes `data/processed/df_train_final.csv`     |
+| `build_customer_features.py`    | Refreshes `processed.customer_features` (one row per customer, 21 cols)  |
+| `generate_lineage.py`           | Refreshes `processed.data_lineage` (22 feature-level lineage records)    |
+| `run_eda.py`                    | Runs exploratory analysis; writes outputs to `data/processed/eda/`       |
+| `generate_eda_images_report.py` | Generates 13 EDA charts + HTML report in `data/processed/eda/`           |
 
-### 5. Feature selection + importance (MLflow)
+---
 
-This step performs **permutation importance** analysis and selects a final non-redundant feature set from the feature store. It also logs the resulting feature list as an **MLflow artifact**.
+### Step 5 — Feature selection and importance (MLflow)
+
+Runs permutation importance analysis, selects a final non-redundant feature set, and logs the results to MLflow.
 
 ```bash
 python source/mlops/feature_selection.py
 ```
 
-Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` by default).
+Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` directory by default).
 
-### 6. Validate SQL outputs
+---
+
+### Step 6 — Handle class imbalance (US-18)
+
+Runs two MLflow experiments comparing SMOTE oversampling vs. `class_weight="balanced"` model training.
+
+```bash
+python source/mlops/train_us18_class_imbalance.py
+```
+
+Evidence artifacts are written to `docs/artifacts/` and logged to MLflow.
+
+---
+
+### Step 7 — Validate database outputs
+
+Connect to the database and run the validation queries.
+
+**macOS/Linux:**
+```bash
+docker exec -it bt4301_postgres psql -U bt4301 -d kkbox
+```
+
+**Windows (PowerShell or CMD):**
+```powershell
+docker exec -it bt4301_postgres psql -U bt4301 -d kkbox
+```
+
+Then paste and run:
 
 ```sql
 SELECT COUNT(*) AS raw_train_rows FROM raw.train;
@@ -136,73 +208,54 @@ SELECT COUNT(*) AS lineage_rows FROM processed.data_lineage;
 WITH feature_cols AS (
   SELECT column_name
   FROM information_schema.columns
-  WHERE table_schema='processed'
-    AND table_name='customer_features'
+  WHERE table_schema = 'processed'
+    AND table_name = 'customer_features'
     AND column_name <> 'msno'
 ),
 lineage_feats AS (
-  SELECT DISTINCT feature_name
-  FROM processed.data_lineage
+  SELECT DISTINCT feature_name FROM processed.data_lineage
 )
 SELECT
-  (SELECT COUNT(*)
-   FROM feature_cols fc
-   LEFT JOIN lineage_feats lf ON fc.column_name=lf.feature_name
+  (SELECT COUNT(*) FROM feature_cols fc
+   LEFT JOIN lineage_feats lf ON fc.column_name = lf.feature_name
    WHERE lf.feature_name IS NULL) AS missing_in_lineage,
-  (SELECT COUNT(*)
-   FROM lineage_feats lf
-   LEFT JOIN feature_cols fc ON lf.feature_name=fc.column_name
+  (SELECT COUNT(*) FROM lineage_feats lf
+   LEFT JOIN feature_cols fc ON lf.feature_name = fc.column_name
    WHERE fc.column_name IS NULL) AS extra_in_lineage;
 ```
 
-Expected:
-
-- `raw_train_rows == customer_feature_rows`
+Expected results:
+- `raw_train_rows` equals `customer_feature_rows`
 - `missing_in_lineage = 0`
 - `extra_in_lineage = 0`
 
-### 7. Airflow DAGs
+---
+
+## Airflow DAGs
 
 Current DAGs:
 
-- `us6_transform_and_track_lineage`
-- `us8_dataops_e2e_pipeline`
-- `daily_churn_scoring` (US-13)
+| DAG name                          | Description                              |
+| --------------------------------- | ---------------------------------------- |
+| `us6_transform_and_track_lineage` | Transform features + track lineage       |
+| `us8_dataops_e2e_pipeline`        | Full DataOps chain (ingest → EDA report) |
+| `daily_churn_scoring`             | Daily scoring pipeline (US-13)           |
 
-US-08 chain:
-`ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda -> generate_eda_images_report`
+US-08 task chain:
+`ingest_raw → cleanse → transform_features → track_lineage → trigger_eda → generate_eda_images_report`
 
-### 8. Run Airflow on Windows (recommended via Docker)
+### Option A — Run Airflow via Docker (recommended for both macOS and Windows)
 
-Native Windows Airflow may fail due `fcntl` import errors. Use Docker Airflow:
+This is the easiest approach and avoids platform compatibility issues.
 
-```cmd
-docker run --name airflow-us8 --rm -it -p 8080:8080 ^
-  -v "%cd%:/opt/project" ^
-  -e AIRFLOW__CORE__DAGS_FOLDER=/opt/project/source/dataops/airflow/dags ^
-  -e PROJECT_ROOT=/opt/project ^
-  -e POSTGRES_HOST=host.docker.internal ^
-  -e POSTGRES_PORT=5433 ^
-  -e POSTGRES_DB=kkbox ^
-  -e POSTGRES_USER=bt4301 ^
-  -e POSTGRES_PASSWORD=bt4301pass ^
-  apache/airflow:2.9.3 ^
-  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
-```
-
-Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
-
-### 9. Run Airflow on macOS (Docker)
-
-Use Docker Airflow similarly on macOS:
-
+**macOS/Linux:**
 ```bash
 docker run --name airflow-us8 --rm -it -p 8080:8080 \
   -v "$(pwd):/opt/project" \
   -e AIRFLOW__CORE__DAGS_FOLDER=/opt/project/source/dataops/airflow/dags \
   -e PROJECT_ROOT=/opt/project \
   -e POSTGRES_HOST=host.docker.internal \
-  -e POSTGRES_PORT=5433 \
+  -e POSTGRES_PORT=5432 \
   -e POSTGRES_DB=kkbox \
   -e POSTGRES_USER=bt4301 \
   -e POSTGRES_PASSWORD=bt4301pass \
@@ -210,48 +263,70 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 \
   bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
 ```
 
-Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+**Windows — PowerShell:**
+```powershell
+docker run --name airflow-us8 --rm -it -p 8080:8080 `
+  -v "${PWD}:/opt/project" `
+  -e AIRFLOW__CORE__DAGS_FOLDER=/opt/project/source/dataops/airflow/dags `
+  -e PROJECT_ROOT=/opt/project `
+  -e POSTGRES_HOST=host.docker.internal `
+  -e POSTGRES_PORT=5432 `
+  -e POSTGRES_DB=kkbox `
+  -e POSTGRES_USER=bt4301 `
+  -e POSTGRES_PASSWORD=bt4301pass `
+  apache/airflow:2.9.3 `
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
+```
 
-### 10. Run Airflow on macOS (native)
+**Windows — CMD:**
+```cmd
+docker run --name airflow-us8 --rm -it -p 8080:8080 ^
+  -v "%cd%:/opt/project" ^
+  -e AIRFLOW__CORE__DAGS_FOLDER=/opt/project/source/dataops/airflow/dags ^
+  -e PROJECT_ROOT=/opt/project ^
+  -e POSTGRES_HOST=host.docker.internal ^
+  -e POSTGRES_PORT=5432 ^
+  -e POSTGRES_DB=kkbox ^
+  -e POSTGRES_USER=bt4301 ^
+  -e POSTGRES_PASSWORD=bt4301pass ^
+  apache/airflow:2.9.3 ^
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
+```
+
+Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+
+> **Windows note:** Native Airflow is not supported on Windows due to `fcntl` import errors. Use the Docker method above.
+
+---
+
+### Option B — Run Airflow natively (macOS only)
 
 1. Install Airflow in a virtual environment:
-
-```bash
-export AIRFLOW_HOME=~/airflow
-pip install "apache-airflow==2.9.3" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.10.txt"
-```
+   ```bash
+   export AIRFLOW_HOME=~/airflow
+   pip install "apache-airflow==2.9.3" \
+     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.10.txt"
+   ```
 
 2. Initialise the database and create an admin user:
-
-```bash
-airflow db migrate
-airflow users create --username admin --password admin \
-  --firstname Admin --lastname User --role Admin --email admin@example.com
-```
+   ```bash
+   airflow db migrate
+   airflow users create \
+     --username admin --password admin \
+     --firstname Admin --lastname User \
+     --role Admin --email admin@example.com
+   ```
 
 3. Set environment variables and start Airflow:
+   ```bash
+   export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
+   export PROJECT_ROOT=$(pwd)
+   export POSTGRES_HOST=127.0.0.1
+   export POSTGRES_PORT=5432
+   export POSTGRES_DB=kkbox
+   export POSTGRES_USER=bt4301
+   export POSTGRES_PASSWORD=bt4301pass
+   airflow standalone
+   ```
 
-```bash
-export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
-export PROJECT_ROOT=$(pwd)
-export POSTGRES_HOST=127.0.0.1
-export POSTGRES_PORT=5432
-export POSTGRES_DB=kkbox
-export POSTGRES_USER=bt4301
-export POSTGRES_PASSWORD=bt4301pass
-airflow standalone
-```
-
-4. Open `http://localhost:8080`, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
-
-### 11. Handle class imbalance (US-18)
-
-Runs two MLflow experiments comparing:
-1. SMOTE oversampling
-2. `class_weight="balanced"` model training
-
-```bash
-python source/mlops/train_us18_class_imbalance.py
-```
-
-Evidence artifacts are written to `docs/artifacts/` and also logged to MLflow.
+4. Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
