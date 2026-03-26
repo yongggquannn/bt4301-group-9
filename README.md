@@ -180,11 +180,78 @@ Runs two MLflow experiments comparing SMOTE oversampling vs. `class_weight="bala
 python source/mlops/train_us18_class_imbalance.py
 ```
 
-Evidence artifacts are written to `docs/artifacts/` and logged to MLflow.
+Evidence artifacts are written to `docs/artifacts/` and logged to MLflow (including `us18_chosen_strategy.json` for the next step).
 
 ---
 
-### Step 7 — Validate database outputs
+### Step 7 — Train and compare models (US-10)
+
+Trains Logistic Regression, XGBoost, and MLP on `processed.customer_features` using the feature list from Step 5 and (if present) the imbalance strategy from Step 6. Logs metrics and plots to MLflow; writes comparison artifacts to `docs/artifacts/` (e.g. `us10_model_comparison.csv`, `us10_best_model.json`).
+
+**Prerequisites:** Steps 4–6 recommended (Step 6 can be skipped—training falls back to a default imbalance strategy if `us18_chosen_strategy.json` is missing).
+
+```bash
+python source/mlops/train_model.py
+```
+
+Quick smoke test (one model, subsampled rows):
+
+```bash
+python source/mlops/train_model.py --models logistic_regression --sample-rows 5000
+```
+
+---
+
+### Step 8 — Register best model in MLflow Model Registry (US-12)
+
+Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and promotes it through None → Staging → Production.
+
+**Prerequisites:** The MLflow tracking server must be running. Choose one of the options below:
+
+**Option A — Docker (recommended, works on all platforms):**
+
+```bash
+docker compose up
+```
+
+This starts both PostgreSQL and MLflow together. MLflow will be available at http://localhost:5001.
+
+**Option B — macOS / Linux (local PostgreSQL required):**
+
+1. Set your system username in `.env`:
+   ```
+   MLFLOW_POSTGRES_USER=<output of `whoami`>
+   ```
+2. Start the server:
+   ```bash
+   bash mlflow_server.sh
+   ```
+
+**Option C — Windows (local PostgreSQL required):**
+
+1. Set your PostgreSQL credentials in `.env`:
+   ```
+   MLFLOW_POSTGRES_USER=postgres
+   MLFLOW_POSTGRES_PASSWORD=yourpassword
+   ```
+2. Start the server:
+   ```powershell
+   .\mlflow_server.ps1
+   ```
+
+Then, in a separate terminal:
+
+```bash
+export MLFLOW_TRACKING_URI=http://localhost:5001   # macOS/Linux
+# $env:MLFLOW_TRACKING_URI="http://localhost:5001" # Windows PowerShell
+python source/mlops/register_model.py
+```
+
+This registers `KKBox-Churn-Classifier` version 1 and transitions it to Production. Evidence is saved to `docs/artifacts/us12_model_registry.json`. Visit the MLflow UI at http://localhost:5001/#/models/KKBox-Churn-Classifier to view the registry.
+
+---
+
+### Step 9 — Validate database outputs
 
 Connect to the database and run the validation queries.
 
