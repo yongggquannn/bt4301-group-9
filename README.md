@@ -46,11 +46,13 @@ The raw datasets (~1.9 GB) come from the [KKBox Churn Prediction Challenge](http
 ### Download
 
 **macOS/Linux:**
+
 ```bash
 bash data/download_data.sh
 ```
 
 **Windows (PowerShell — requires Git Bash or WSL):**
+
 ```powershell
 bash data/download_data.sh
 ```
@@ -85,6 +87,7 @@ docker ps
 Look for `(healthy)` in the STATUS column. This usually takes about 15 seconds.
 
 > **Already ran this before?** If you previously started the container and see a "table not found" error later, the init scripts may not have re-run (Docker only runs them once on first volume creation). Fix it manually:
+>
 > ```bash
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/00_schemas.sql
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/01_raw_tables.sql
@@ -106,6 +109,7 @@ pip install -r requirements.txt
 These tell the Python scripts how to connect to the database. Set them **once per terminal session** before running any scripts.
 
 **macOS/Linux (bash/zsh):**
+
 ```bash
 export POSTGRES_HOST=127.0.0.1
 export POSTGRES_PORT=5432
@@ -115,6 +119,7 @@ export POSTGRES_PASSWORD=bt4301pass
 ```
 
 **Windows — PowerShell:**
+
 ```powershell
 $env:POSTGRES_HOST="127.0.0.1"
 $env:POSTGRES_PORT="5432"
@@ -124,6 +129,7 @@ $env:POSTGRES_PASSWORD="bt4301pass"
 ```
 
 **Windows — Command Prompt (CMD):**
+
 ```cmd
 set POSTGRES_HOST=127.0.0.1
 set POSTGRES_PORT=5432
@@ -149,14 +155,14 @@ python source/dataops/generate_eda_images_report.py
 
 What each script does:
 
-| Script                          | What it does                                                             |
-| ------------------------------- | ------------------------------------------------------------------------ |
-| `load_raw_data.py`              | Loads `data/raw/*.csv` into the `raw.*` database tables                  |
-| `cleanse_data.py`               | Cleans and prepares data; writes `data/processed/df_train_final.csv`     |
-| `build_customer_features.py`    | Refreshes `processed.customer_features` (one row per customer, 21 cols)  |
-| `generate_lineage.py`           | Refreshes `processed.data_lineage` (22 feature-level lineage records)    |
-| `run_eda.py`                    | Runs exploratory analysis; writes outputs to `data/processed/eda/`       |
-| `generate_eda_images_report.py` | Generates 13 EDA charts + HTML report in `data/processed/eda/`           |
+| Script                          | What it does                                                            |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `load_raw_data.py`              | Loads `data/raw/*.csv` into the `raw.*` database tables                 |
+| `cleanse_data.py`               | Cleans and prepares data; writes `data/processed/df_train_final.csv`    |
+| `build_customer_features.py`    | Refreshes `processed.customer_features` (one row per customer, 21 cols) |
+| `generate_lineage.py`           | Refreshes `processed.data_lineage` (22 feature-level lineage records)   |
+| `run_eda.py`                    | Runs exploratory analysis; writes outputs to `data/processed/eda/`      |
+| `generate_eda_images_report.py` | Generates 13 EDA charts + HTML report in `data/processed/eda/`          |
 
 ---
 
@@ -251,16 +257,89 @@ This registers `KKBox-Churn-Classifier` version 1 and transitions it to Producti
 
 ---
 
-### Step 9 — Validate database outputs
+### Step 9 - Generate daily predictions from the production model (US-13)
+
+Runs the scoring pipeline against the production model. The scoring script tries the MLflow registry model `models:/KKBox-Churn-Classifier/Production` when `MLFLOW_MODEL_URI` is not set, and only falls back to a small local model if the production model is unavailable.
+
+```bash
+python source/mlops/score_churn.py all
+```
+
+This writes predictions into `processed.churn_predictions`, which are then used by the monitoring DAG.
+
+---
+
+### Step 10 - Model governance artifacts (US-15)
+
+The production training flow in `source/mlops/train_model.py` now writes model-governance artifacts for the best model and logs them to MLflow.
+
+Expected local artifacts in `docs/artifacts/`:
+
+- `us15_model_card.md`
+- `us15_feature_list_types.csv`
+- `us15_fairness_gender.csv`
+- `us15_fairness_age_band.csv`
+
+Governance evidence guide:
+
+- `docs/us15_governance_evidence.md`
+
+---
+
+### Step 11 - Weekly monitoring checks (US-14)
+
+Run `US-15` first so the best model artifacts are ready, then continue with registration, scoring, and weekly monitoring.
+
+The weekly monitoring DAG checks feature drift and model degradation.
+
+It:
+
+- computes PSI for the top 5 monitorable features
+- compares current AUC against a baseline AUC
+- logs results into `processed.model_monitoring_results`
+- triggers an alert task if `PSI > 0.2` or `AUC delta > 0.05`
+
+After triggering `daily_churn_scoring` and `us14_weekly_model_monitoring` in Airflow, connect to PostgreSQL and run:
+
+```sql
+SELECT
+  monitored_at,
+  baseline_auc_source,
+  cohort_strategy,
+  baseline_auc,
+  current_auc,
+  auc_delta,
+  max_psi,
+  breached,
+  breached_reasons,
+  baseline_row_count,
+  current_row_count,
+  psi_by_feature
+FROM processed.model_monitoring_results
+ORDER BY monitored_at DESC
+LIMIT 10;
+```
+
+This query is the main evidence query for `US-14` because it shows the stored PSI values, AUC comparison, alert decision, and row counts for each monitoring run.
+
+Monitoring evidence guide:
+
+- `docs/us14_monitoring_evidence.md`
+
+---
+
+### Step 12 - Validate database outputs
 
 Connect to the database and run the validation queries.
 
 **macOS/Linux:**
+
 ```bash
 docker exec -it bt4301_postgres psql -U bt4301 -d kkbox
 ```
 
 **Windows (PowerShell or CMD):**
+
 ```powershell
 docker exec -it bt4301_postgres psql -U bt4301 -d kkbox
 ```
@@ -292,6 +371,7 @@ SELECT
 ```
 
 Expected results:
+
 - `raw_train_rows` equals `customer_feature_rows`
 - `missing_in_lineage = 0`
 - `extra_in_lineage = 0`
@@ -307,15 +387,23 @@ Current DAGs:
 | `us6_transform_and_track_lineage` | Transform features + track lineage       |
 | `us8_dataops_e2e_pipeline`        | Full DataOps chain (ingest → EDA report) |
 | `daily_churn_scoring`             | Daily scoring pipeline (US-13)           |
+| `us14_weekly_model_monitoring`    | Weekly drift + degradation monitoring    |
 
 US-08 task chain:
 `ingest_raw → cleanse → transform_features → track_lineage → trigger_eda → generate_eda_images_report`
 
 ### Option A — Run Airflow via Docker (recommended for both macOS and Windows)
 
+US-13 task chain:
+`load_features -> load_production_model -> score -> write_predictions`
+
+US-14 task chain:
+`compute_and_log_monitoring_metrics -> evaluate_thresholds -> (trigger_alert | no_alert_needed)`
+
 This is the easiest approach and avoids platform compatibility issues.
 
 **macOS/Linux:**
+
 ```bash
 docker run --name airflow-us8 --rm -it -p 8080:8080 \
   -v "$(pwd):/opt/project" \
@@ -327,10 +415,11 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 \
   -e POSTGRES_USER=bt4301 \
   -e POSTGRES_PASSWORD=bt4301pass \
   apache/airflow:2.9.3 \
-  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn scikit-learn mlflow xgboost imbalanced-learn joblib && airflow standalone"
 ```
 
 **Windows — PowerShell:**
+
 ```powershell
 docker run --name airflow-us8 --rm -it -p 8080:8080 `
   -v "${PWD}:/opt/project" `
@@ -342,10 +431,11 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 `
   -e POSTGRES_USER=bt4301 `
   -e POSTGRES_PASSWORD=bt4301pass `
   apache/airflow:2.9.3 `
-  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn scikit-learn mlflow xgboost imbalanced-learn joblib && airflow standalone"
 ```
 
 **Windows — CMD:**
+
 ```cmd
 docker run --name airflow-us8 --rm -it -p 8080:8080 ^
   -v "%cd%:/opt/project" ^
@@ -357,10 +447,10 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 ^
   -e POSTGRES_USER=bt4301 ^
   -e POSTGRES_PASSWORD=bt4301pass ^
   apache/airflow:2.9.3 ^
-  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn && airflow standalone"
+  bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn scikit-learn mlflow xgboost imbalanced-learn joblib && airflow standalone"
 ```
 
-Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+Open http://localhost:8080, trigger the DAG you want to test, and verify all tasks are green. For the MLOps flow, the usual order is `daily_churn_scoring` followed by `us14_weekly_model_monitoring`.
 
 > **Windows note:** Native Airflow is not supported on Windows due to `fcntl` import errors. Use the Docker method above.
 
@@ -369,6 +459,7 @@ Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all t
 ### Option B — Run Airflow natively (macOS only)
 
 1. Install Airflow in a virtual environment:
+
    ```bash
    export AIRFLOW_HOME=~/airflow
    pip install "apache-airflow==2.9.3" \
@@ -376,6 +467,7 @@ Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all t
    ```
 
 2. Initialise the database and create an admin user:
+
    ```bash
    airflow db migrate
    airflow users create \
@@ -385,6 +477,7 @@ Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all t
    ```
 
 3. Set environment variables and start Airflow:
+
    ```bash
    export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
    export PROJECT_ROOT=$(pwd)
@@ -396,4 +489,4 @@ Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all t
    airflow standalone
    ```
 
-4. Open http://localhost:8080, trigger `us8_dataops_e2e_pipeline`, and verify all tasks are green.
+4. Open http://localhost:8080, trigger the DAG you want to test, and verify all tasks are green.
