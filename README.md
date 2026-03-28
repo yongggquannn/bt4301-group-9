@@ -202,6 +202,32 @@ python source/mlops/train_model.py --models logistic_regression --sample-rows 50
 
 ---
 
+### Step 7.5 — Misclassification analysis (US-22)
+
+Analyzes validation-set errors to show confusion matrix breakdown (FN vs FP), compares feature distributions between misclassified and correctly classified records, and generates an insights report.
+
+**Prerequisites:** Steps 4-7 are recommended, especially `docs/artifacts/final_feature_set.json` from Step 5.
+
+```bash
+python source/mlops/analyze_misclassifications.py
+```
+
+Optional smoke test on fewer rows:
+
+```bash
+python source/mlops/analyze_misclassifications.py --sample-rows 5000 --model xgboost
+```
+
+Outputs:
+- `docs/us22_misclassification_analysis.md`
+- `docs/artifacts/us22_confusion_breakdown.json`
+- `docs/artifacts/us22_misclassified_cases.csv`
+- `docs/artifacts/us22_numeric_distribution_comparison.csv`
+- `docs/artifacts/us22_categorical_distribution_comparison.csv`
+- `docs/artifacts/us22_feature_distribution_plot.png`
+
+---
+
 ### Step 8 — Register best model in MLflow Model Registry (US-12)
 
 Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and promotes it through None → Staging → Production.
