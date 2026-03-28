@@ -10,8 +10,8 @@
     "transaction_count",
     "cancel_count",
     "registration_init_time",
-    "bd",
-    "avg_plan_days"
+    "avg_plan_days",
+    "bd"
   ],
   "selected_feature_count": 12,
   "selection_method": {

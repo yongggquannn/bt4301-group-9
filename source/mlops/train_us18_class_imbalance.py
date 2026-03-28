@@ -182,7 +182,7 @@ def train_and_evaluate_smote(
         support_churn=int(support[1]) if isinstance(support, (list, tuple, np.ndarray)) and len(support) > 1 else int(np.sum(y_val == 1)),
     )
 
-    payload = {"model": model}
+    payload = {"model": model, "val_proba": proba}
     return metrics, payload
 
 
@@ -227,7 +227,7 @@ def train_and_evaluate_class_weight(
         support_churn=int(support[1]) if isinstance(support, (list, tuple, np.ndarray)) and len(support) > 1 else int(np.sum(y_val == 1)),
     )
 
-    payload = {"model": model}
+    payload = {"model": model, "val_proba": proba}
     return metrics, payload
 
 
@@ -339,7 +339,11 @@ def main() -> None:
     chosen_json.write_text(json.dumps(justification, indent=2), encoding="utf-8")
     comparison_md.write_text(comparison.to_markdown(index=False), encoding="utf-8")
 
-    def _log_for_strategy(strategy: str, metrics: RunMetrics) -> None:
+    def _log_for_strategy(
+        strategy: str,
+        metrics: RunMetrics,
+        payload: dict[str, Any],
+    ) -> None:
         mlflow.set_experiment(args.experiment_name)
         with mlflow.start_run(run_name=strategy):
             mlflow.log_params(
@@ -365,17 +369,18 @@ def main() -> None:
 
             mlflow.log_artifact(str(comparison_csv))
             mlflow.log_artifact(str(chosen_json))
+            mlflow.log_artifact(str(comparison_md))
 
             # Store models for potential later reuse.
             if strategy == "SMOTE":
-                joblib.dump(smote_payload["model"], out_dir / "us18_smote_model.joblib")
+                joblib.dump(payload["model"], out_dir / "us18_smote_model.joblib")
                 mlflow.log_artifact(str(out_dir / "us18_smote_model.joblib"))
             else:
-                joblib.dump(cw_payload["model"], out_dir / "us18_class_weight_model.joblib")
+                joblib.dump(payload["model"], out_dir / "us18_class_weight_model.joblib")
                 mlflow.log_artifact(str(out_dir / "us18_class_weight_model.joblib"))
 
-    _log_for_strategy("SMOTE", smote_metrics)
-    _log_for_strategy('class_weight="balanced"', cw_metrics)
+    _log_for_strategy("SMOTE", smote_metrics, smote_payload)
+    _log_for_strategy('class_weight="balanced"', cw_metrics, cw_payload)
 
     # Also write a human-readable summary doc (helps the PR/evidence check).
     doc_path = Path("docs") / "us18_class_imbalance.md"
