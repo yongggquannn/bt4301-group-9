@@ -35,12 +35,12 @@ The raw datasets (~1.9 GB) come from the [KKBox Churn Prediction Challenge](http
 ### Prerequisites
 
 1. Install the Kaggle CLI:
-   ```
+  ```
    pip install kaggle
-   ```
-2. Go to https://www.kaggle.com/settings → **API** → **Create New Token** and save the downloaded `kaggle.json`:
-   - **macOS/Linux:** save to `~/.kaggle/kaggle.json`, then run `chmod 600 ~/.kaggle/kaggle.json`
-   - **Windows:** save to `C:\Users\<YourUsername>\.kaggle\kaggle.json`
+  ```
+2. Go to [https://www.kaggle.com/settings](https://www.kaggle.com/settings) → **API** → **Create New Token** and save the downloaded `kaggle.json`:
+  - **macOS/Linux:** save to `~/.kaggle/kaggle.json`, then run `chmod 600 ~/.kaggle/kaggle.json`
+  - **Windows:** save to `C:\Users\<YourUsername>\.kaggle\kaggle.json`
 3. Accept the [competition rules](https://www.kaggle.com/c/kkbox-churn-prediction-challenge/rules) (required for the download to work).
 
 ### Download
@@ -61,12 +61,14 @@ bash data/download_data.sh
 
 This downloads and unzips the following files into `data/raw/`:
 
+
 | File                  | Description                                 |
 | --------------------- | ------------------------------------------- |
 | `train_v2.csv`        | Training labels — whether each user churned |
 | `members_v3.csv`      | User demographic and registration info      |
 | `transactions_v2.csv` | Payment transaction history                 |
 | `user_logs_v2.csv`    | Daily listening activity logs               |
+
 
 ---
 
@@ -155,6 +157,7 @@ python source/dataops/generate_eda_images_report.py
 
 What each script does:
 
+
 | Script                          | What it does                                                            |
 | ------------------------------- | ----------------------------------------------------------------------- |
 | `load_raw_data.py`              | Loads `data/raw/*.csv` into the `raw.*` database tables                 |
@@ -163,6 +166,7 @@ What each script does:
 | `generate_lineage.py`           | Refreshes `processed.data_lineage` (22 feature-level lineage records)   |
 | `run_eda.py`                    | Runs exploratory analysis; writes outputs to `data/processed/eda/`      |
 | `generate_eda_images_report.py` | Generates 13 EDA charts + HTML report in `data/processed/eda/`          |
+
 
 ---
 
@@ -225,6 +229,7 @@ python source/mlops/analyze_misclassifications.py --sample-rows 5000 --model xgb
 ```
 
 Outputs:
+
 - `docs/us22_misclassification_analysis.md`
 - `docs/artifacts/us22_confusion_breakdown.json`
 - `docs/artifacts/us22_misclassified_cases.csv`
@@ -246,40 +251,40 @@ Registers the best model (from US-10 training) into the MLflow Model Registry as
 docker compose up
 ```
 
-This starts both PostgreSQL and MLflow together. MLflow will be available at http://localhost:5001.
+This starts both PostgreSQL and MLflow together. MLflow will be available at [http://localhost:5001](http://localhost:5001).
 
 **Option B — macOS / Linux (local PostgreSQL required):**
 
 1. Set your system username in `.env`:
-   ```
+  ```
    MLFLOW_POSTGRES_USER=<output of `whoami`>
-   ```
+  ```
 2. Start the server:
-   ```bash
+  ```bash
    bash mlflow_server.sh
-   ```
+  ```
 
 **Option C — Windows (local PostgreSQL required):**
 
 1. Set your PostgreSQL credentials in `.env`:
-   ```
+  ```
    MLFLOW_POSTGRES_USER=postgres
    MLFLOW_POSTGRES_PASSWORD=yourpassword
-   ```
+  ```
 2. Start the server:
-   ```powershell
+  ```powershell
    .\mlflow_server.ps1
-   ```
+  ```
 
 Then, in a separate terminal:
 
 ```bash
-export MLFLOW_TRACKING_URI=http://localhost:5001   # macOS/Linux
+clear   # macOS/Linux
 # $env:MLFLOW_TRACKING_URI="http://localhost:5001" # Windows PowerShell
 python source/mlops/register_model.py
 ```
 
-This registers `KKBox-Churn-Classifier` version 1 and transitions it to Production. Evidence is saved to `docs/artifacts/us12_model_registry.json`. Visit the MLflow UI at http://localhost:5001/#/models/KKBox-Churn-Classifier to view the registry.
+This registers `KKBox-Churn-Classifier` version 1 and transitions it to Production. Evidence is saved to `docs/artifacts/us12_model_registry.json`. Visit the MLflow UI at [http://localhost:5001/#/models/KKBox-Churn-Classifier](http://localhost:5001/#/models/KKBox-Churn-Classifier) to view the registry.
 
 ---
 
@@ -292,6 +297,33 @@ python source/mlops/score_churn.py all
 ```
 
 This writes predictions into `processed.churn_predictions`, which are then used by the monitoring DAG.
+
+---
+
+### Step 9.5 — Churn risk web app (US-16)
+
+A minimal FastAPI web app that lets you look up a customer's churn risk.
+
+**Prerequisites:** Steps 1–9 (PostgreSQL running, `processed.churn_predictions` populated).
+
+**Install additional dependencies:**
+
+```bash
+pip install fastapi "uvicorn[standard]" jinja2
+```
+
+**Start the web app:**
+
+```bash
+python -m uvicorn source.webapp.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Verify:**
+
+- **Browser:** Open [http://localhost:8000](http://localhost:8000), enter a customer ID, and click "Look up".
+- **API:** `curl http://localhost:8000/customer/<customer_id>/churn-risk`
+
+Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), and `top_3_features` (global permutation importance).
 
 ---
 
@@ -408,12 +440,14 @@ Expected results:
 
 Current DAGs:
 
+
 | DAG name                          | Description                              |
 | --------------------------------- | ---------------------------------------- |
 | `us6_transform_and_track_lineage` | Transform features + track lineage       |
 | `us8_dataops_e2e_pipeline`        | Full DataOps chain (ingest → EDA report) |
 | `daily_churn_scoring`             | Daily scoring pipeline (US-13)           |
 | `us14_weekly_model_monitoring`    | Weekly drift + degradation monitoring    |
+
 
 US-08 task chain:
 `ingest_raw → cleanse → transform_features → track_lineage → trigger_eda → generate_eda_images_report`
@@ -476,7 +510,7 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 ^
   bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn scikit-learn mlflow xgboost imbalanced-learn joblib && airflow standalone"
 ```
 
-Open http://localhost:8080, trigger the DAG you want to test, and verify all tasks are green. For the MLOps flow, the usual order is `daily_churn_scoring` followed by `us14_weekly_model_monitoring`.
+Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to test, and verify all tasks are green. For the MLOps flow, the usual order is `daily_churn_scoring` followed by `us14_weekly_model_monitoring`.
 
 > **Windows note:** Native Airflow is not supported on Windows due to `fcntl` import errors. Use the Docker method above.
 
@@ -485,26 +519,21 @@ Open http://localhost:8080, trigger the DAG you want to test, and verify all tas
 ### Option B — Run Airflow natively (macOS only)
 
 1. Install Airflow in a virtual environment:
-
-   ```bash
+  ```bash
    export AIRFLOW_HOME=~/airflow
    pip install "apache-airflow==2.9.3" \
      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.10.txt"
-   ```
-
+  ```
 2. Initialise the database and create an admin user:
-
-   ```bash
+  ```bash
    airflow db migrate
    airflow users create \
      --username admin --password admin \
      --firstname Admin --lastname User \
      --role Admin --email admin@example.com
-   ```
-
+  ```
 3. Set environment variables and start Airflow:
-
-   ```bash
+  ```bash
    export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
    export PROJECT_ROOT=$(pwd)
    export POSTGRES_HOST=127.0.0.1
@@ -513,6 +542,6 @@ Open http://localhost:8080, trigger the DAG you want to test, and verify all tas
    export POSTGRES_USER=bt4301
    export POSTGRES_PASSWORD=bt4301pass
    airflow standalone
-   ```
+  ```
+4. Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to test, and verify all tasks are green.
 
-4. Open http://localhost:8080, trigger the DAG you want to test, and verify all tasks are green.
