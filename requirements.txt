@@ -11,3 +11,6 @@ scikit-learn
 mlflow
 imbalanced-learn
 xgboost
+fastapi
+uvicorn[standard]
+jinja2
