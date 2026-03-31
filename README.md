@@ -223,7 +223,6 @@ Runs an Optuna study (30 trials by default) to find optimal XGBoost hyperparamet
 
 
 ```bash
-pip install optuna
 python source/mlops/tune_hyperparams.py
 ```
 
@@ -361,7 +360,7 @@ Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), and `top_3_f
 
 Generates SHAP values for the production churn model, producing a summary plot (global feature importance) and waterfall plots for three sample customers (high/medium/low risk). SHAP values are also stored per-prediction in the database and logged to MLflow.
 
-**Prerequisites:** Steps 1–10 (PostgreSQL running, `processed.churn_predictions` populated, model trained and registered).
+**Prerequisites:** Steps 1–11 (PostgreSQL running, `processed.churn_predictions` populated, model trained and registered).
 
 **If upgrading an existing database** (table already exists without the `shap_values` column), run the migration first:
 
@@ -401,7 +400,7 @@ LIMIT 3;
 
 ---
 
-### Step 13 — Model governance artifacts (US-15)
+### Step 14 — Model governance artifacts (US-15)
 
 The production training flow in `source/mlops/train_model.py` now writes model-governance artifacts for the best model and logs them to MLflow.
 
@@ -418,7 +417,7 @@ Governance evidence guide:
 
 ---
 
-### Step 14 — Weekly monitoring checks (US-14)
+### Step 15 — Weekly monitoring checks (US-14)
 
 Run `US-15` first so the best model artifacts are ready, then continue with registration, scoring, and weekly monitoring.
 
@@ -460,7 +459,7 @@ Monitoring evidence guide:
 
 ---
 
-### Step 15 — Validate database outputs
+### Step 16 — Validate database outputs
 
 Connect to the database and run the validation queries.
 
