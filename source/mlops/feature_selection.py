@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from dataclasses import dataclass
@@ -18,6 +19,9 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+
+
+DEFAULT_TRACKING_URI = "http://localhost:5001"
 
 
 @dataclass(frozen=True)
@@ -294,6 +298,18 @@ def run_feature_selection(
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Feature selection with permutation importance",
+    )
+    parser.add_argument(
+        "--tracking-uri",
+        default=DEFAULT_TRACKING_URI,
+        help="MLflow tracking server URI (default: %(default)s)",
+    )
+    args = parser.parse_args()
+
+    mlflow.set_tracking_uri(args.tracking_uri)
+
     df = load_feature_store()
     res = run_feature_selection(df)
     print(f"Selected {len(res.selected_features)} features:")

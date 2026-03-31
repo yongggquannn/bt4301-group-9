@@ -74,13 +74,13 @@ This downloads and unzips the following files into `data/raw/`:
 
 ## Running the Pipeline
 
-### Step 1 — Start PostgreSQL
+### Step 1 — Start PostgreSQL & MLflow
 
 ```bash
 docker compose up -d
 ```
 
-This starts a PostgreSQL 15 container (`bt4301_postgres`) and automatically creates all schemas and tables from `db/init/`. Wait until the container is healthy:
+This starts a PostgreSQL 15 container (`bt4301_postgres`) and the MLflow tracking server (`bt4301_mlflow`) at [http://localhost:5001](http://localhost:5001). PostgreSQL schemas and tables are automatically created from `db/init/`. Wait until both containers are healthy:
 
 ```bash
 docker ps
@@ -180,7 +180,7 @@ Runs permutation importance analysis, selects a final non-redundant feature set,
 python source/mlops/feature_selection.py
 ```
 
-Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` directory by default).
+Outputs are written to `docs/artifacts/` and logged to the MLflow tracking server at `http://localhost:5001`.
 
 ---
 
@@ -272,44 +272,9 @@ Outputs:
 
 Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and promotes it through None → Staging → Production.
 
-**Prerequisites:** The MLflow tracking server must be running. Choose one of the options below:
-
-**Option A — Docker (recommended, works on all platforms):**
+**Prerequisites:** Docker containers from Step 1 must be running (`docker compose up -d`).
 
 ```bash
-docker compose up
-```
-
-This starts both PostgreSQL and MLflow together. MLflow will be available at [http://localhost:5001](http://localhost:5001).
-
-**Option B — macOS / Linux (local PostgreSQL required):**
-
-1. Set your system username in `.env`:
-  ```
-   MLFLOW_POSTGRES_USER=<output of `whoami`>
-  ```
-2. Start the server:
-  ```bash
-   bash mlflow_server.sh
-  ```
-
-**Option C — Windows (local PostgreSQL required):**
-
-1. Set your PostgreSQL credentials in `.env`:
-  ```
-   MLFLOW_POSTGRES_USER=postgres
-   MLFLOW_POSTGRES_PASSWORD=yourpassword
-  ```
-2. Start the server:
-  ```powershell
-   .\mlflow_server.ps1
-  ```
-
-Then, in a separate terminal:
-
-```bash
-clear   # macOS/Linux
-# $env:MLFLOW_TRACKING_URI="http://localhost:5001" # Windows PowerShell
 python source/mlops/register_model.py
 ```
 
@@ -378,7 +343,7 @@ python source/mlops/explain_shap.py
 
 | Flag | Description |
 | ---- | ----------- |
-| `--tracking-uri` | MLflow tracking URI (default: local `mlruns/`) |
+| `--tracking-uri` | MLflow tracking server URI (default: `http://localhost:5001`) |
 | `--top-k N` | Number of top SHAP features to store per prediction (default: 5) |
 | `--skip-db-update` | Skip writing SHAP values back to the database |
 

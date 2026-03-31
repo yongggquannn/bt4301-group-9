@@ -25,6 +25,8 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 
 
+DEFAULT_TRACKING_URI = "http://localhost:5001"
+
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),
     "port": int(os.getenv("POSTGRES_PORT", 5432)),
@@ -242,6 +244,11 @@ def choose_strategy(smote_metrics: RunMetrics, cw_metrics: RunMetrics) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--tracking-uri",
+        default=DEFAULT_TRACKING_URI,
+        help="MLflow tracking server URI (default: %(default)s)",
+    )
     parser.add_argument("--experiment-name", default="us18-class-imbalance", type=str)
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--threshold", default=0.5, type=float)
@@ -254,6 +261,8 @@ def main() -> None:
 
     parser.add_argument("--max-iter", default=2000, type=int)
     args = parser.parse_args()
+
+    mlflow.set_tracking_uri(args.tracking_uri)
 
     df = load_feature_store(sample_rows=args.sample_rows, seed=args.seed)
     y, X, categorical_cols, numeric_cols = _infer_feature_columns(df)

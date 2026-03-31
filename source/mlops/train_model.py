@@ -52,6 +52,8 @@ IMBALANCE_STRATEGY_PATH = ARTIFACT_DIR / "us18_chosen_strategy.json"
 
 EXPERIMENT_NAME = "KKBox Churn"
 
+DEFAULT_TRACKING_URI = "http://localhost:5001"
+
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),
     "port": int(os.getenv("POSTGRES_PORT", 5432)),
@@ -647,6 +649,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="US-10: Train & compare churn models",
     )
+    parser.add_argument(
+        "--tracking-uri",
+        default=DEFAULT_TRACKING_URI,
+        help="MLflow tracking server URI (default: %(default)s)",
+    )
     parser.add_argument("--experiment-name", default=EXPERIMENT_NAME, type=str)
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--test-size", default=0.2, type=float)
@@ -659,6 +666,8 @@ def main() -> None:
         help="Subset of models to train (for dev iteration)",
     )
     args = parser.parse_args()
+
+    mlflow.set_tracking_uri(args.tracking_uri)
 
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
 

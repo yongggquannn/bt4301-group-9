@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
 ARTIFACT_DIR = _PROJECT_ROOT / "docs" / "artifacts"
+DEFAULT_TRACKING_URI = "http://localhost:5001"
 
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),
@@ -438,8 +439,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="US-19: SHAP Explainability")
     parser.add_argument(
-        "--tracking-uri", default=None,
-        help="MLflow tracking URI (default: local mlruns/)",
+        "--tracking-uri", default=DEFAULT_TRACKING_URI,
+        help="MLflow tracking server URI (default: %(default)s)",
     )
     parser.add_argument(
         "--top-k", type=int, default=5,
@@ -451,8 +452,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.tracking_uri:
-        mlflow.set_tracking_uri(args.tracking_uri)
+    mlflow.set_tracking_uri(args.tracking_uri)
 
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
 
