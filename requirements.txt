@@ -12,6 +12,7 @@ mlflow
 imbalanced-learn
 xgboost
 optuna
+shap
 fastapi
 uvicorn[standard]
 jinja2

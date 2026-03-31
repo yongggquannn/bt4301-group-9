@@ -256,6 +256,7 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
         churn_probability NUMERIC     NOT NULL,
         risk_tier         VARCHAR(16) NOT NULL,
         scored_at         TIMESTAMPTZ NOT NULL,
+        shap_values       JSONB,
         PRIMARY KEY (customer_id, scored_at)
     );
     """

@@ -94,6 +94,8 @@ Look for `(healthy)` in the STATUS column. This usually takes about 15 seconds.
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/00_schemas.sql
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/01_raw_tables.sql
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/02_processed.sql
+> docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/03_mlflow_db.sql
+> docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/03_monitoring.sql
 > ```
 
 ---
@@ -352,6 +354,50 @@ python -m uvicorn source.webapp.app:app --host 0.0.0.0 --port 8000 --reload
 - **API:** `curl http://localhost:8000/customer/<customer_id>/churn-risk`
 
 Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), and `top_3_features` (global permutation importance).
+
+---
+
+### Step 13 — SHAP explainability (US-19)
+
+Generates SHAP values for the production churn model, producing a summary plot (global feature importance) and waterfall plots for three sample customers (high/medium/low risk). SHAP values are also stored per-prediction in the database and logged to MLflow.
+
+**Prerequisites:** Steps 1–10 (PostgreSQL running, `processed.churn_predictions` populated, model trained and registered).
+
+**If upgrading an existing database** (table already exists without the `shap_values` column), run the migration first:
+
+```bash
+docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/migrations/us19_add_shap_values.sql
+```
+
+**Run the SHAP script:**
+
+```bash
+python source/mlops/explain_shap.py
+```
+
+**CLI options:**
+
+| Flag | Description |
+| ---- | ----------- |
+| `--tracking-uri` | MLflow tracking URI (default: local `mlruns/`) |
+| `--top-k N` | Number of top SHAP features to store per prediction (default: 5) |
+| `--skip-db-update` | Skip writing SHAP values back to the database |
+
+**Artifacts produced (in `docs/artifacts/`):**
+
+- `us19_shap_summary.png` — SHAP beeswarm summary plot
+- `us19_shap_waterfall_high.png` — Waterfall plot for a high-risk customer
+- `us19_shap_waterfall_medium.png` — Waterfall plot for a medium-risk customer
+- `us19_shap_waterfall_low.png` — Waterfall plot for a low-risk customer
+
+**Verify DB update:**
+
+```sql
+SELECT customer_id, shap_values
+FROM processed.churn_predictions
+WHERE shap_values IS NOT NULL
+LIMIT 3;
+```
 
 ---
 
