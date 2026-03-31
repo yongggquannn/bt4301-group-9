@@ -249,11 +249,10 @@ def _predict_proba(model, df: pd.DataFrame) -> np.ndarray:
         X = df.drop(columns=[c for c in ["msno", "is_churn", "feature_created_at"] if c in df.columns])
         return model.predict_proba(X)[:, 1]
 
-    # mlflow.pyfunc generic model — needs preprocessing first
+    # mlflow.pyfunc generic model — unwrap to get predict_proba
     X = _preprocess_for_production_model(df)
-    preds = model.predict(pd.DataFrame(X))
-    preds = np.asarray(preds).reshape(-1)
-    return preds
+    inner = model._model_impl.sklearn_model
+    return inner.predict_proba(X)[:, 1]
 
 
 def _assign_risk_tier(prob: float) -> str:
