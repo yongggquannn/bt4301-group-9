@@ -11,6 +11,7 @@ scikit-learn
 mlflow
 imbalanced-learn
 xgboost
+optuna
 fastapi
 uvicorn[standard]
 jinja2
