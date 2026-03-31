@@ -212,11 +212,39 @@ python source/mlops/train_model.py --models logistic_regression --sample-rows 50
 
 ---
 
-### Step 7.5 — Misclassification analysis (US-22)
+### Step 8 — Hyperparameter tuning (US-17)
+
+Runs an Optuna study (30 trials by default) to find optimal XGBoost hyperparameters. Each trial is logged as a nested MLflow run.
+
+**Prerequisites:** Steps 4–7 (feature store, feature selection, imbalance strategy, and baseline model).
+
+
+
+```bash
+pip install optuna
+python source/mlops/tune_hyperparams.py
+```
+
+Quick test with fewer trials:
+
+```bash
+python source/mlops/tune_hyperparams.py --n-trials 5 --sample-rows 5000
+```
+
+Outputs in `docs/artifacts/`:
+
+- `us17_best_hyperparams.json` — best params and AUC-ROC
+- `us17_optimization_curve.png` — Optuna optimisation history
+- `us17_param_importance.png` — hyperparameter importance
+- `us17_improvement_summary.md` — baseline vs tuned comparison
+
+---
+
+### Step 9 — Misclassification analysis (US-22)
 
 Analyzes validation-set errors to show confusion matrix breakdown (FN vs FP), compares feature distributions between misclassified and correctly classified records, and generates an insights report.
 
-**Prerequisites:** Steps 4-7 are recommended, especially `docs/artifacts/final_feature_set.json` from Step 5.
+**Prerequisites:** Steps 4–7 are recommended, especially `docs/artifacts/final_feature_set.json` from Step 5.
 
 ```bash
 python source/mlops/analyze_misclassifications.py
@@ -239,7 +267,7 @@ Outputs:
 
 ---
 
-### Step 8 — Register best model in MLflow Model Registry (US-12)
+### Step 10 — Register best model in MLflow Model Registry (US-12)
 
 Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and promotes it through None → Staging → Production.
 
@@ -288,7 +316,7 @@ This registers `KKBox-Churn-Classifier` version 1 and transitions it to Producti
 
 ---
 
-### Step 9 - Generate daily predictions from the production model (US-13)
+### Step 11 — Generate daily predictions from the production model (US-13)
 
 Runs the scoring pipeline against the production model. The scoring script tries the MLflow registry model `models:/KKBox-Churn-Classifier/Production` when `MLFLOW_MODEL_URI` is not set, and only falls back to a small local model if the production model is unavailable.
 
@@ -300,11 +328,11 @@ This writes predictions into `processed.churn_predictions`, which are then used 
 
 ---
 
-### Step 9.5 — Churn risk web app (US-16)
+### Step 12 — Churn risk web app (US-16)
 
 A minimal FastAPI web app that lets you look up a customer's churn risk.
 
-**Prerequisites:** Steps 1–9 (PostgreSQL running, `processed.churn_predictions` populated).
+**Prerequisites:** Steps 1–11 (PostgreSQL running, `processed.churn_predictions` populated).
 
 **Install additional dependencies:**
 
@@ -327,7 +355,7 @@ Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), and `top_3_f
 
 ---
 
-### Step 10 - Model governance artifacts (US-15)
+### Step 13 — Model governance artifacts (US-15)
 
 The production training flow in `source/mlops/train_model.py` now writes model-governance artifacts for the best model and logs them to MLflow.
 
@@ -344,7 +372,7 @@ Governance evidence guide:
 
 ---
 
-### Step 11 - Weekly monitoring checks (US-14)
+### Step 14 — Weekly monitoring checks (US-14)
 
 Run `US-15` first so the best model artifacts are ready, then continue with registration, scoring, and weekly monitoring.
 
@@ -386,7 +414,7 @@ Monitoring evidence guide:
 
 ---
 
-### Step 12 - Validate database outputs
+### Step 15 — Validate database outputs
 
 Connect to the database and run the validation queries.
 
