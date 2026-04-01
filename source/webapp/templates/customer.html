@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer {{ customer_id }} — KKBox Churn Risk</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+        h1 { font-size: 1.4rem; }
+        nav { margin-bottom: 1rem; font-size: 0.9rem; }
+        nav a { color: #2563eb; text-decoration: none; margin-right: 1rem; }
+        nav a:hover { text-decoration: underline; }
+        .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.25rem; margin-top: 1.5rem; }
+        .card h2 { margin: 0 0 0.75rem; font-size: 1.1rem; }
+        .tier { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600; font-size: 0.9rem; }
+        .tier-high { background: #fee2e2; color: #991b1b; }
+        .tier-medium { background: #fef3c7; color: #92400e; }
+        .tier-low { background: #d1fae5; color: #065f46; }
+        dt { font-weight: 600; margin-top: 0.75rem; }
+        dd { margin: 0.25rem 0 0 0; }
+        .shap-list { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+        .shap-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid #f3f4f6; }
+        .shap-list li:last-child { border-bottom: none; }
+        .shap-rank { font-weight: 600; color: #6b7280; width: 1.2rem; flex-shrink: 0; }
+        .shap-feature { flex: 1; }
+        .shap-value { font-size: 0.85rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 3px; }
+        .shap-positive { background: #fee2e2; color: #991b1b; }
+        .shap-negative { background: #d1fae5; color: #065f46; }
+        .shap-note { font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem; }
+        .error { color: #991b1b; background: #fee2e2; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 1.5rem; }
+        .prob-value { font-size: 1.6rem; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">← Home</a>
+        <a href="/dashboard">Dashboard</a>
+    </nav>
+    <h1>Customer Churn Risk</h1>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+    <div class="card">
+        <h2>Customer {{ result.customer_id }}</h2>
+        <dl>
+            <dt>Churn Probability</dt>
+            <dd><span class="prob-value">{{ "%.1f" | format(result.churn_probability * 100) }}%</span></dd>
+
+            <dt>Risk Tier</dt>
+            <dd>
+                {% if result.risk_tier == "High" %}
+                <span class="tier tier-high">High</span>
+                {% elif result.risk_tier == "Medium" %}
+                <span class="tier tier-medium">Medium</span>
+                {% else %}
+                <span class="tier tier-low">Low</span>
+                {% endif %}
+            </dd>
+
+            <dt>Top Contributing Features</dt>
+            <dd>
+                {% if result.top_3_shap %}
+                <ul class="shap-list">
+                    {% for entry in result.top_3_shap %}
+                    <li>
+                        <span class="shap-rank">{{ loop.index }}.</span>
+                        <span class="shap-feature">{{ entry.feature }}</span>
+                        <span class="shap-value {% if entry.shap_value > 0 %}shap-positive{% else %}shap-negative{% endif %}">
+                            {% if entry.shap_value > 0 %}+{% endif %}{{ "%.4f" | format(entry.shap_value) }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <p class="shap-note">Positive values increase churn risk; negative values reduce it.</p>
+                {% else %}
+                <ul class="shap-list">
+                    {% for feat in result.top_3_features %}
+                    <li>
+                        <span class="shap-rank">{{ loop.index }}.</span>
+                        <span class="shap-feature">{{ feat }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <p class="shap-note">Showing global feature importance (per-customer SHAP not yet available for this customer).</p>
+                {% endif %}
+            </dd>
+        </dl>
+    </div>
+    {% endif %}
+</body>
+</html>

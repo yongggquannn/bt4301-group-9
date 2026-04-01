@@ -1,13 +1,15 @@
 """Minimal churn-risk web app (FastAPI)."""
 
 import csv
+import json
 import os
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 import psycopg2
 import psycopg2.extras
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 # ---------------------------------------------------------------------------
@@ -15,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 # ---------------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 def _require_env(name: str) -> str:
     val = os.getenv(name)
@@ -35,7 +38,7 @@ DB_CONFIG = {
 }
 
 # ---------------------------------------------------------------------------
-# Global feature importance (loaded once at startup)
+# Global feature importance (loaded once at startup, optional fallback)
 # ---------------------------------------------------------------------------
 
 _IMPORTANCE_CSV = PROJECT_ROOT / "docs" / "artifacts" / "permutation_importance.csv"
@@ -56,7 +59,10 @@ def _load_top_features(n: int = 3) -> list[str]:
     return [r["feature"] for r in rows[:n]]
 
 
-TOP_3_FEATURES: list[str] = _load_top_features()
+try:
+    TOP_3_FEATURES: list[str] = _load_top_features()
+except FileNotFoundError:
+    TOP_3_FEATURES = []
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -70,12 +76,38 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 # ---------------------------------------------------------------------------
 
 _LATEST_PREDICTION_SQL = """
-SELECT customer_id, churn_probability, risk_tier, scored_at
+SELECT customer_id, churn_probability, risk_tier, scored_at, shap_values
   FROM processed.churn_predictions
  WHERE customer_id = %s
  ORDER BY scored_at DESC
  LIMIT 1;
 """
+
+_DASHBOARD_SQL = """
+SELECT customer_id, churn_probability, risk_tier, scored_at
+FROM (
+    SELECT DISTINCT ON (customer_id)
+           customer_id, churn_probability, risk_tier, scored_at
+      FROM processed.churn_predictions
+     ORDER BY customer_id, scored_at DESC
+) latest
+ORDER BY churn_probability DESC
+LIMIT 50;
+"""
+
+
+def _parse_shap_values(raw: object) -> list[dict] | None:
+    """Parse shap_values from DB (JSONB auto-parsed or raw string)."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return None
+    if isinstance(raw, list) and raw:
+        return raw
+    return None
 
 
 def _get_prediction(customer_id: str) -> dict | None:
@@ -91,12 +123,45 @@ def _get_prediction(customer_id: str) -> dict | None:
         conn.close()
     if row is None:
         return None
+
+    shap_entries = _parse_shap_values(row["shap_values"])
+    if shap_entries:
+        top_3_shap = shap_entries[:3]
+        top_3_features = [e["feature"] for e in top_3_shap]
+    else:
+        top_3_shap = None
+        top_3_features = TOP_3_FEATURES
+
     return {
         "customer_id": row["customer_id"],
         "churn_probability": float(row["churn_probability"]),
         "risk_tier": row["risk_tier"],
-        "top_3_features": TOP_3_FEATURES,
+        "top_3_features": top_3_features,
+        "top_3_shap": top_3_shap,
     }
+
+
+def _get_top_customers() -> list[dict]:
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+    except psycopg2.OperationalError as exc:
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(_DASHBOARD_SQL)
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "customer_id": r["customer_id"],
+            "customer_url": quote(r["customer_id"], safe=""),
+            "churn_probability": float(r["churn_probability"]),
+            "risk_tier": r["risk_tier"],
+            "scored_at": r["scored_at"].strftime("%Y-%m-%d %H:%M UTC") if r["scored_at"] else "",
+        }
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -108,24 +173,26 @@ def _get_prediction(customer_id: str) -> dict | None:
 def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "result": None, "error": None, "customer_id": None},
+        {"request": request},
     )
 
 
-@app.get("/customer/{customer_id}/churn-risk")
-def churn_risk_api(customer_id: str) -> dict:
-    result = _get_prediction(customer_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return result
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request) -> HTMLResponse:
+    customers = _get_top_customers()
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {"request": request, "customers": customers},
+    )
 
 
-@app.get("/lookup", response_class=HTMLResponse)
-def lookup(request: Request, customer_id: str = Query(...)) -> HTMLResponse:
+@app.get("/customer/{customer_id:path}", response_class=HTMLResponse)
+def customer_detail(request: Request, customer_id: str) -> HTMLResponse:
+    customer_id = unquote(customer_id)
     result = _get_prediction(customer_id)
     error = "Customer not found." if result is None else None
     return templates.TemplateResponse(
-        "index.html",
+        "customer.html",
         {
             "request": request,
             "result": result,
@@ -133,6 +200,20 @@ def lookup(request: Request, customer_id: str = Query(...)) -> HTMLResponse:
             "customer_id": customer_id,
         },
     )
+
+
+@app.get("/customer/{customer_id:path}/churn-risk")
+def churn_risk_api(customer_id: str) -> dict:
+    customer_id = unquote(customer_id)
+    result = _get_prediction(customer_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return result
+
+
+@app.get("/lookup", response_class=HTMLResponse)
+def lookup_redirect(customer_id: str = Query(...)) -> RedirectResponse:
+    return RedirectResponse(url=f"/customer/{quote(customer_id, safe='')}", status_code=302)
 
 
 if __name__ == "__main__":
