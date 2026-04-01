@@ -294,11 +294,11 @@ This writes predictions into `processed.churn_predictions`, which are then used 
 
 ---
 
-### Step 12 — Churn risk web app (US-16)
+### Step 12 — Churn risk web app (US-16 / US-23)
 
-A minimal FastAPI web app that lets you look up a customer's churn risk.
+A FastAPI web app with three pages: a customer lookup, a customer detail page with SHAP explanations, and a top-50 churn risk dashboard.
 
-**Prerequisites:** Steps 1–11 (PostgreSQL running, `processed.churn_predictions` populated).
+**Prerequisites:** Steps 1–11 (PostgreSQL running, `processed.churn_predictions` populated). Step 13 (SHAP) is optional — the app falls back to global feature importance if per-customer SHAP values are not yet stored.
 
 **Install additional dependencies:**
 
@@ -312,12 +312,29 @@ pip install fastapi "uvicorn[standard]" jinja2
 python -m uvicorn source.webapp.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+**Pages:**
+
+| URL | Description |
+|-----|-------------|
+| `http://localhost:8000/` | Search bar — enter a customer ID and submit |
+| `http://localhost:8000/customer/<id>` | Churn probability (%), risk tier badge, top 3 SHAP features |
+| `http://localhost:8000/dashboard` | Table of top 50 highest-risk customers, sortable by any column |
+
 **Verify:**
 
-- **Browser:** Open [http://localhost:8000](http://localhost:8000), enter a customer ID, and click "Look up".
-- **API:** `curl http://localhost:8000/customer/<customer_id>/churn-risk`
+1. Open [http://localhost:8000](http://localhost:8000) — search bar is visible with a "View Dashboard →" link.
+2. Enter a valid customer ID and click "Look up" → redirects to `/customer/<id>` showing probability, risk badge, and top 3 features.
+3. Visit [http://localhost:8000/dashboard](http://localhost:8000/dashboard) → table of top 50 customers; click column headers to sort.
+4. Click a customer ID link in the dashboard → navigates to their detail page.
+5. Enter a non-existent customer ID → friendly "Customer not found." error message.
 
-Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), and `top_3_features` (global permutation importance).
+**JSON API (backward compatible):**
+
+```bash
+curl http://localhost:8000/customer/<customer_id>/churn-risk
+```
+
+Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), `top_3_features`, and `top_3_shap` (per-customer SHAP values if available).
 
 ---
 

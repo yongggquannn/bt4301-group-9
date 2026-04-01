@@ -7,62 +7,21 @@
     <style>
         body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
         h1 { font-size: 1.4rem; }
+        nav { margin-bottom: 1rem; font-size: 0.9rem; }
+        nav a { color: #2563eb; text-decoration: none; }
+        nav a:hover { text-decoration: underline; }
         form { display: flex; gap: 0.5rem; margin: 1.5rem 0; }
         input[type="text"] { flex: 1; padding: 0.5rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 4px; }
         button { padding: 0.5rem 1.2rem; font-size: 1rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
         button:hover { background: #1d4ed8; }
-        .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.25rem; margin-top: 1.5rem; }
-        .card h2 { margin: 0 0 0.75rem; font-size: 1.1rem; }
-        .tier { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600; font-size: 0.9rem; }
-        .tier-high { background: #fee2e2; color: #991b1b; }
-        .tier-medium { background: #fef3c7; color: #92400e; }
-        .tier-low { background: #d1fae5; color: #065f46; }
-        .features { margin: 0.75rem 0 0; padding-left: 1.25rem; }
-        .features li { margin: 0.25rem 0; }
-        .error { color: #991b1b; background: #fee2e2; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 1.5rem; }
-        dt { font-weight: 600; margin-top: 0.5rem; }
-        dd { margin: 0.15rem 0 0.5rem 0; }
     </style>
 </head>
 <body>
+    <nav><a href="/dashboard">View Dashboard →</a></nav>
     <h1>KKBox Churn Risk Lookup</h1>
-    <form method="GET" action="/lookup">
-        <input type="text" name="customer_id" placeholder="Enter customer ID" value="{{ customer_id or '' }}" required>
+    <form onsubmit="event.preventDefault(); var id = this.querySelector('input').value.trim(); if(id) window.location.href='/customer/' + encodeURIComponent(id);">
+        <input type="text" placeholder="Enter customer ID" required>
         <button type="submit">Look up</button>
     </form>
-
-    {% if error %}
-    <div class="error">{{ error }}</div>
-    {% endif %}
-
-    {% if result %}
-    <div class="card">
-        <h2>Customer {{ result.customer_id }}</h2>
-        <dl>
-            <dt>Churn Probability</dt>
-            <dd>{{ "%.1f" | format(result.churn_probability * 100) }}%</dd>
-
-            <dt>Risk Tier</dt>
-            <dd>
-                {% if result.risk_tier == "High" %}
-                <span class="tier tier-high">High</span>
-                {% elif result.risk_tier == "Medium" %}
-                <span class="tier tier-medium">Medium</span>
-                {% else %}
-                <span class="tier tier-low">Low</span>
-                {% endif %}
-            </dd>
-
-            <dt>Top Contributing Features</dt>
-            <dd>
-                <ol class="features">
-                    {% for feat in result.top_3_features %}
-                    <li>{{ feat }}</li>
-                    {% endfor %}
-                </ol>
-            </dd>
-        </dl>
-    </div>
-    {% endif %}
 </body>
 </html>
