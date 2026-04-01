@@ -16,7 +16,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
 DB_CONFIG = {
@@ -26,6 +26,9 @@ DB_CONFIG = {
     "user": os.getenv("POSTGRES_USER", "bt4301"),
     "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
 }
+
+DEFAULT_TRACKING_URI = "http://localhost:5001"
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", DEFAULT_TRACKING_URI))
 
 SCORING_DIR = Path("data") / "scoring"
 SCORING_DIR.mkdir(parents=True, exist_ok=True)
@@ -188,16 +191,68 @@ def airflow_load_production_model(artifacts: ScoringArtifacts | None = None, **_
     print(f"[load_production_model] Saved model to {artifacts.model_path}")
 
 
+_CATEGORICAL_FEATURES = frozenset(
+    {"gender", "city", "registered_via", "latest_payment_method_id", "latest_is_auto_renew"}
+)
+
+_FEATURE_SET_PATH = Path(__file__).resolve().parent.parent.parent / "docs" / "artifacts" / "final_feature_set.json"
+
+
+def _load_selected_features() -> list[str]:
+    """Read the feature list produced by feature selection (same as train_model)."""
+    import json
+    with open(_FEATURE_SET_PATH, encoding="utf-8") as fh:
+        return json.load(fh)["selected_features"]
+
+
+def _preprocess_for_production_model(df: pd.DataFrame) -> np.ndarray:
+    """Apply the same preprocessing used during training (build_preprocessor).
+
+    The production model logged in MLflow is a raw estimator (e.g. XGBClassifier)
+    trained on already-preprocessed numeric data, so we must replicate the
+    ColumnTransformer pipeline from train_model.py before calling predict.
+    """
+    selected = _load_selected_features()
+    X = df[[c for c in selected if c in df.columns]]
+
+    categorical_cols = [c for c in X.columns if c in _CATEGORICAL_FEATURES]
+    numeric_cols = [c for c in X.columns if c not in _CATEGORICAL_FEATURES]
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (
+                "num",
+                Pipeline(steps=[
+                    ("imputer", SimpleImputer(strategy="median")),
+                    ("scaler", StandardScaler()),
+                ]),
+                numeric_cols,
+            ),
+            (
+                "cat",
+                Pipeline(steps=[
+                    ("imputer", SimpleImputer(strategy="most_frequent")),
+                    ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+                ]),
+                categorical_cols,
+            ),
+        ],
+        remainder="drop",
+        verbose_feature_names_out=False,
+    )
+    return preprocessor.fit_transform(X)
+
+
 def _predict_proba(model, df: pd.DataFrame) -> np.ndarray:
-    # sklearn Pipeline
+    # sklearn Pipeline (includes its own preprocessing)
     if hasattr(model, "predict_proba"):
         X = df.drop(columns=[c for c in ["msno", "is_churn", "feature_created_at"] if c in df.columns])
         return model.predict_proba(X)[:, 1]
 
-    # mlflow.pyfunc generic model
-    preds = model.predict(df)
-    preds = np.asarray(preds).reshape(-1)
-    return preds
+    # mlflow.pyfunc generic model — unwrap to get predict_proba
+    X = _preprocess_for_production_model(df)
+    inner = model._model_impl.sklearn_model
+    return inner.predict_proba(X)[:, 1]
 
 
 def _assign_risk_tier(prob: float) -> str:
@@ -256,6 +311,7 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
         churn_probability NUMERIC     NOT NULL,
         risk_tier         VARCHAR(16) NOT NULL,
         scored_at         TIMESTAMPTZ NOT NULL,
+        shap_values       JSONB,
         PRIMARY KEY (customer_id, scored_at)
     );
     """

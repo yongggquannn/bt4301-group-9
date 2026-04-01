@@ -36,6 +36,7 @@ from xgboost import XGBClassifier
 # Re-use helpers from the Sprint-2 training script (same directory).
 # ---------------------------------------------------------------------------
 _SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_TRACKING_URI = "http://localhost:5001"
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 from train_model import (  # noqa: E402
@@ -214,6 +215,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="US-17: Hyperparameter Tuning with Optuna",
     )
+    parser.add_argument(
+        "--tracking-uri",
+        default=DEFAULT_TRACKING_URI,
+        help="MLflow tracking server URI (default: %(default)s)",
+    )
     parser.add_argument("--experiment-name", default=EXPERIMENT_NAME)
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--test-size", default=0.2, type=float)
@@ -221,6 +227,8 @@ def main() -> None:
     parser.add_argument("--sample-rows", default=None, type=int)
     parser.add_argument("--n-trials", default=N_TRIALS_DEFAULT, type=int)
     args = parser.parse_args()
+
+    mlflow.set_tracking_uri(args.tracking_uri)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)

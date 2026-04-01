@@ -74,13 +74,13 @@ This downloads and unzips the following files into `data/raw/`:
 
 ## Running the Pipeline
 
-### Step 1 — Start PostgreSQL
+### Step 1 — Start PostgreSQL & MLflow
 
 ```bash
 docker compose up -d
 ```
 
-This starts a PostgreSQL 15 container (`bt4301_postgres`) and automatically creates all schemas and tables from `db/init/`. Wait until the container is healthy:
+This starts a PostgreSQL 15 container (`bt4301_postgres`) and the MLflow tracking server (`bt4301_mlflow`) at [http://localhost:5001](http://localhost:5001). PostgreSQL schemas and tables are automatically created from `db/init/`. Wait until both containers are healthy:
 
 ```bash
 docker ps
@@ -94,6 +94,8 @@ Look for `(healthy)` in the STATUS column. This usually takes about 15 seconds.
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/00_schemas.sql
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/01_raw_tables.sql
 > docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/02_processed.sql
+> docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/03_mlflow_db.sql
+> docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/init/03_monitoring.sql
 > ```
 
 ---
@@ -178,7 +180,7 @@ Runs permutation importance analysis, selects a final non-redundant feature set,
 python source/mlops/feature_selection.py
 ```
 
-Outputs are written to `docs/artifacts/` and logged to MLflow (local `mlruns/` directory by default).
+Outputs are written to `docs/artifacts/` and logged to the MLflow tracking server at `http://localhost:5001`.
 
 ---
 
@@ -221,7 +223,6 @@ Runs an Optuna study (30 trials by default) to find optimal XGBoost hyperparamet
 
 
 ```bash
-pip install optuna
 python source/mlops/tune_hyperparams.py
 ```
 
@@ -271,44 +272,9 @@ Outputs:
 
 Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and promotes it through None → Staging → Production.
 
-**Prerequisites:** The MLflow tracking server must be running. Choose one of the options below:
-
-**Option A — Docker (recommended, works on all platforms):**
+**Prerequisites:** Docker containers from Step 1 must be running (`docker compose up -d`).
 
 ```bash
-docker compose up
-```
-
-This starts both PostgreSQL and MLflow together. MLflow will be available at [http://localhost:5001](http://localhost:5001).
-
-**Option B — macOS / Linux (local PostgreSQL required):**
-
-1. Set your system username in `.env`:
-  ```
-   MLFLOW_POSTGRES_USER=<output of `whoami`>
-  ```
-2. Start the server:
-  ```bash
-   bash mlflow_server.sh
-  ```
-
-**Option C — Windows (local PostgreSQL required):**
-
-1. Set your PostgreSQL credentials in `.env`:
-  ```
-   MLFLOW_POSTGRES_USER=postgres
-   MLFLOW_POSTGRES_PASSWORD=yourpassword
-  ```
-2. Start the server:
-  ```powershell
-   .\mlflow_server.ps1
-  ```
-
-Then, in a separate terminal:
-
-```bash
-clear   # macOS/Linux
-# $env:MLFLOW_TRACKING_URI="http://localhost:5001" # Windows PowerShell
 python source/mlops/register_model.py
 ```
 
@@ -355,7 +321,51 @@ Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), and `top_3_f
 
 ---
 
-### Step 13 — Model governance artifacts (US-15)
+### Step 13 — SHAP explainability (US-19)
+
+Generates SHAP values for the production churn model, producing a summary plot (global feature importance) and waterfall plots for three sample customers (high/medium/low risk). SHAP values are also stored per-prediction in the database and logged to MLflow.
+
+**Prerequisites:** Steps 1–11 (PostgreSQL running, `processed.churn_predictions` populated, model trained and registered).
+
+**If upgrading an existing database** (table already exists without the `shap_values` column), run the migration first:
+
+```bash
+docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/migrations/us19_add_shap_values.sql
+```
+
+**Run the SHAP script:**
+
+```bash
+python source/mlops/explain_shap.py
+```
+
+**CLI options:**
+
+| Flag | Description |
+| ---- | ----------- |
+| `--tracking-uri` | MLflow tracking server URI (default: `http://localhost:5001`) |
+| `--top-k N` | Number of top SHAP features to store per prediction (default: 5) |
+| `--skip-db-update` | Skip writing SHAP values back to the database |
+
+**Artifacts produced (in `docs/artifacts/`):**
+
+- `us19_shap_summary.png` — SHAP beeswarm summary plot
+- `us19_shap_waterfall_high.png` — Waterfall plot for a high-risk customer
+- `us19_shap_waterfall_medium.png` — Waterfall plot for a medium-risk customer
+- `us19_shap_waterfall_low.png` — Waterfall plot for a low-risk customer
+
+**Verify DB update:**
+
+```sql
+SELECT customer_id, shap_values
+FROM processed.churn_predictions
+WHERE shap_values IS NOT NULL
+LIMIT 3;
+```
+
+---
+
+### Step 14 — Model governance artifacts (US-15)
 
 The production training flow in `source/mlops/train_model.py` now writes model-governance artifacts for the best model and logs them to MLflow.
 
@@ -372,7 +382,7 @@ Governance evidence guide:
 
 ---
 
-### Step 14 — Weekly monitoring checks (US-14)
+### Step 15 — Weekly monitoring checks (US-14)
 
 Run `US-15` first so the best model artifacts are ready, then continue with registration, scoring, and weekly monitoring.
 
@@ -414,7 +424,7 @@ Monitoring evidence guide:
 
 ---
 
-### Step 15 — Validate database outputs
+### Step 16 — Validate database outputs
 
 Connect to the database and run the validation queries.
 
