@@ -72,7 +72,54 @@ This downloads and unzips the following files into `data/raw/`:
 
 ---
 
-## Running the Pipeline
+## Quick Start (Docker Compose — Full Stack)
+
+Spin up the entire stack (PostgreSQL, Airflow, MLflow, web app) with a single command.
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- KKBox data downloaded to `data/raw/` (see Data Setup above)
+- ~4 GB free RAM (Airflow + ML dependencies)
+
+### Steps
+
+```bash
+# 1. Create your .env (only needed once)
+cp .env.example .env
+
+# 2. Build and start all services
+docker compose up --build
+```
+
+First build takes several minutes (installing ML dependencies in the Airflow image). Subsequent starts are fast.
+
+### Access Points
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Airflow UI | [http://localhost:8080](http://localhost:8080) | admin / admin |
+| MLflow UI | [http://localhost:5001](http://localhost:5001) | — |
+| Web App | [http://localhost:8000](http://localhost:8000) | — |
+| PostgreSQL | `localhost:5432` | bt4301 / bt4301pass |
+
+### Running the Pipelines
+
+1. Open the Airflow UI at [http://localhost:8080](http://localhost:8080)
+2. Trigger `us8_dataops_e2e_pipeline` to run the full DataOps chain (ingest → EDA)
+3. After DataOps completes, trigger `daily_churn_scoring` to generate predictions
+4. Visit [http://localhost:8000/dashboard](http://localhost:8000/dashboard) to see scored customers
+
+### Stopping
+
+```bash
+docker compose down       # stop containers (keeps data)
+docker compose down -v    # stop and remove volumes (clean slate)
+```
+
+---
+
+## Running the Pipeline (Manual Setup)
 
 ### Step 1 — Start PostgreSQL & MLflow
 

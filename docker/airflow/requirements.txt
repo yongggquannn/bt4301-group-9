@@ -1,0 +1,12 @@
+pandas
+numpy
+psycopg2-binary
+scikit-learn
+mlflow
+xgboost
+imbalanced-learn
+optuna
+shap
+kaggle
+matplotlib
+seaborn
