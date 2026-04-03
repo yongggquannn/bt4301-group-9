@@ -52,7 +52,7 @@ IMBALANCE_STRATEGY_PATH = ARTIFACT_DIR / "us18_chosen_strategy.json"
 
 EXPERIMENT_NAME = "KKBox Churn"
 
-DEFAULT_TRACKING_URI = "http://localhost:5001"
+DEFAULT_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),

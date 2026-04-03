@@ -21,7 +21,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 
-DEFAULT_TRACKING_URI = "http://localhost:5001"
+DEFAULT_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
+DEFAULT_N_JOBS = int(os.getenv("FEATURE_SELECTION_N_JOBS", "1"))
 
 
 @dataclass(frozen=True)
@@ -79,7 +80,12 @@ def _infer_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:
     return categorical, numeric
 
 
-def _build_pipeline(categorical_cols: list[str], numeric_cols: list[str], seed: int) -> Pipeline:
+def _build_pipeline(
+    categorical_cols: list[str],
+    numeric_cols: list[str],
+    seed: int,
+    n_jobs: int,
+) -> Pipeline:
     numeric_tf = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),
@@ -103,7 +109,7 @@ def _build_pipeline(categorical_cols: list[str], numeric_cols: list[str], seed: 
     clf = RandomForestClassifier(
         n_estimators=400,
         random_state=seed,
-        n_jobs=-1,
+        n_jobs=n_jobs,
         class_weight="balanced_subsample",
     )
 
@@ -152,6 +158,7 @@ def run_feature_selection(
     importance_threshold: float = 0.0,
     correlation_threshold: float = 0.9,
     n_repeats: int = 8,
+    n_jobs: int = DEFAULT_N_JOBS,
 ) -> FeatureSelectionResult:
     if "is_churn" not in df.columns:
         raise ValueError("Expected target column 'is_churn' in feature store.")
@@ -174,7 +181,7 @@ def run_feature_selection(
         stratify=y,
     )
 
-    pipe = _build_pipeline(categorical_cols, numeric_cols, seed=seed)
+    pipe = _build_pipeline(categorical_cols, numeric_cols, seed=seed, n_jobs=n_jobs)
 
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(run_name=run_name):
@@ -186,6 +193,7 @@ def run_feature_selection(
                 "importance_threshold": importance_threshold,
                 "correlation_threshold": correlation_threshold,
                 "permutation_n_repeats": n_repeats,
+                "n_jobs": n_jobs,
                 "model": "RandomForestClassifier",
             }
         )
@@ -218,7 +226,7 @@ def run_feature_selection(
             n_repeats=n_repeats,
             random_state=seed,
             scoring="roc_auc",
-            n_jobs=-1,
+            n_jobs=n_jobs,
         )
 
         importance_df = pd.DataFrame(
@@ -306,12 +314,18 @@ def main() -> None:
         default=DEFAULT_TRACKING_URI,
         help="MLflow tracking server URI (default: %(default)s)",
     )
+    parser.add_argument(
+        "--n-jobs",
+        default=DEFAULT_N_JOBS,
+        type=int,
+        help="Parallel workers for feature selection (default: %(default)s)",
+    )
     args = parser.parse_args()
 
     mlflow.set_tracking_uri(args.tracking_uri)
 
     df = load_feature_store()
-    res = run_feature_selection(df)
+    res = run_feature_selection(df, n_jobs=args.n_jobs)
     print(f"Selected {len(res.selected_features)} features:")
     for f in res.selected_features:
         print(f"  - {f}")

@@ -35,12 +35,16 @@ The raw datasets (~1.9 GB) come from the [KKBox Churn Prediction Challenge](http
 ### Prerequisites
 
 1. Install the Kaggle CLI:
-  ```
-   pip install kaggle
-  ```
+
+```
+ pip install kaggle
+```
+
 2. Go to [https://www.kaggle.com/settings](https://www.kaggle.com/settings) → **API** → **Create New Token** and save the downloaded `kaggle.json`:
-  - **macOS/Linux:** save to `~/.kaggle/kaggle.json`, then run `chmod 600 ~/.kaggle/kaggle.json`
-  - **Windows:** save to `C:\Users\<YourUsername>\.kaggle\kaggle.json`
+
+- **macOS/Linux:** save to `~/.kaggle/kaggle.json`, then run `chmod 600 ~/.kaggle/kaggle.json`
+- **Windows:** save to `C:\Users\<YourUsername>\.kaggle\kaggle.json`
+
 3. Accept the [competition rules](https://www.kaggle.com/c/kkbox-churn-prediction-challenge/rules) (required for the download to work).
 
 ### Download
@@ -61,14 +65,12 @@ bash data/download_data.sh
 
 This downloads and unzips the following files into `data/raw/`:
 
-
 | File                  | Description                                 |
 | --------------------- | ------------------------------------------- |
 | `train_v2.csv`        | Training labels — whether each user churned |
 | `members_v3.csv`      | User demographic and registration info      |
 | `transactions_v2.csv` | Payment transaction history                 |
 | `user_logs_v2.csv`    | Daily listening activity logs               |
-
 
 ---
 
@@ -96,12 +98,12 @@ First build takes several minutes (installing ML dependencies in the Airflow ima
 
 ### Access Points
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Airflow UI | [http://localhost:8080](http://localhost:8080) | admin / admin |
-| MLflow UI | [http://localhost:5001](http://localhost:5001) | — |
-| Web App | [http://localhost:8000](http://localhost:8000) | — |
-| PostgreSQL | `localhost:5432` | bt4301 / bt4301pass |
+| Service    | URL                                            | Credentials         |
+| ---------- | ---------------------------------------------- | ------------------- |
+| Airflow UI | [http://localhost:8080](http://localhost:8080) | admin / admin       |
+| MLflow UI  | [http://localhost:5001](http://localhost:5001) | —                   |
+| Web App    | [http://localhost:8000](http://localhost:8000) | —                   |
+| PostgreSQL | `localhost:5432`                               | bt4301 / bt4301pass |
 
 ### Running the Pipelines
 
@@ -206,7 +208,6 @@ python source/dataops/generate_eda_images_report.py
 
 What each script does:
 
-
 | Script                          | What it does                                                            |
 | ------------------------------- | ----------------------------------------------------------------------- |
 | `load_raw_data.py`              | Loads `data/raw/*.csv` into the `raw.*` database tables                 |
@@ -215,7 +216,6 @@ What each script does:
 | `generate_lineage.py`           | Refreshes `processed.data_lineage` (22 feature-level lineage records)   |
 | `run_eda.py`                    | Runs exploratory analysis; writes outputs to `data/processed/eda/`      |
 | `generate_eda_images_report.py` | Generates 13 EDA charts + HTML report in `data/processed/eda/`          |
-
 
 ---
 
@@ -267,8 +267,6 @@ Runs an Optuna study (30 trials by default) to find optimal XGBoost hyperparamet
 
 **Prerequisites:** Steps 4–7 (feature store, feature selection, imbalance strategy, and baseline model).
 
-
-
 ```bash
 python source/mlops/tune_hyperparams.py
 ```
@@ -315,9 +313,15 @@ Outputs:
 
 ---
 
-### Step 10 — Register best model in MLflow Model Registry (US-12)
+### Step 10 — Register best model in MLflow Model Registry (US-12 / US-20)
 
-Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and promotes it through None → Staging → Production.
+Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and applies a champion-challenger promotion rule.
+
+Promotion rule:
+
+- if there is no current Production champion, the new version becomes the initial champion
+- if `new_model_auc > champion_auc + threshold`, the challenger is promoted to Production
+- otherwise the current champion stays in Production and the new version remains visible in Staging as a challenger
 
 **Prerequisites:** Docker containers from Step 1 must be running (`docker compose up -d`).
 
@@ -325,7 +329,24 @@ Registers the best model (from US-10 training) into the MLflow Model Registry as
 python source/mlops/register_model.py
 ```
 
-This registers `KKBox-Churn-Classifier` version 1 and transitions it to Production. Evidence is saved to `docs/artifacts/us12_model_registry.json`. Visit the MLflow UI at [http://localhost:5001/#/models/KKBox-Churn-Classifier](http://localhost:5001/#/models/KKBox-Churn-Classifier) to view the registry.
+Optional: require a minimum AUC improvement before promotion.
+
+```bash
+python source/mlops/register_model.py --promotion-threshold 0.005
+```
+
+Evidence is saved to:
+
+- `docs/artifacts/us12_model_registry.json`
+- `docs/artifacts/us20_champion_challenger_registry.json`
+- `docs/us20_champion_challenger_evidence.md`
+
+Visit the MLflow UI at [http://localhost:5001/#/models/KKBox-Churn-Classifier](http://localhost:5001/#/models/KKBox-Churn-Classifier) to view:
+
+- the current Production champion
+- the new challenger version
+- model version tags and description recording the promotion decision
+- version history across earlier and current sprints
 
 ---
 
@@ -361,11 +382,11 @@ python -m uvicorn source.webapp.app:app --host 0.0.0.0 --port 8000 --reload
 
 **Pages:**
 
-| URL | Description |
-|-----|-------------|
-| `http://localhost:8000/` | Search bar — enter a customer ID and submit |
-| `http://localhost:8000/customer/<id>` | Churn probability (%), risk tier badge, top 3 SHAP features |
-| `http://localhost:8000/dashboard` | Table of top 50 highest-risk customers, sortable by any column |
+| URL                                   | Description                                                    |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `http://localhost:8000/`              | Search bar — enter a customer ID and submit                    |
+| `http://localhost:8000/customer/<id>` | Churn probability (%), risk tier badge, top 3 SHAP features    |
+| `http://localhost:8000/dashboard`     | Table of top 50 highest-risk customers, sortable by any column |
 
 **Verify:**
 
@@ -405,11 +426,11 @@ python source/mlops/explain_shap.py
 
 **CLI options:**
 
-| Flag | Description |
-| ---- | ----------- |
-| `--tracking-uri` | MLflow tracking server URI (default: `http://localhost:5001`) |
-| `--top-k N` | Number of top SHAP features to store per prediction (default: 5) |
-| `--skip-db-update` | Skip writing SHAP values back to the database |
+| Flag               | Description                                                      |
+| ------------------ | ---------------------------------------------------------------- |
+| `--tracking-uri`   | MLflow tracking server URI (default: `http://localhost:5001`)    |
+| `--top-k N`        | Number of top SHAP features to store per prediction (default: 5) |
+| `--skip-db-update` | Skip writing SHAP values back to the database                    |
 
 **Artifacts produced (in `docs/artifacts/`):**
 
@@ -488,7 +509,34 @@ Monitoring evidence guide:
 
 ---
 
-### Step 16 — Validate database outputs
+### Step 16 — Automated retraining DAG (US-21)
+
+The automated retraining DAG reads the latest monitoring result and only runs the full retraining path when drift or degradation exceeds the US-14 thresholds.
+
+Expected Airflow task chain:
+
+- `check_drift_results -> retrain_if_needed -> evaluate -> register`
+
+Conditional skip path:
+
+- `check_drift_results -> skip_retraining`
+
+Retraining trigger rule:
+
+- retrain only if `max_psi > 0.2`
+- or if `auc_delta > 0.05`
+
+Evidence artifacts:
+
+- `docs/artifacts/us21_retraining_evaluation.json`
+- `docs/artifacts/us21_retraining_decision.json`
+- `docs/us21_retraining_evidence.md`
+
+The DAG uses `source/mlops/register_model.py`, so the final promotion step still goes through the champion-challenger gate from US-20.
+
+---
+
+### Step 17 — Validate database outputs
 
 Connect to the database and run the validation queries.
 
@@ -542,14 +590,12 @@ Expected results:
 
 Current DAGs:
 
-
 | DAG name                          | Description                              |
 | --------------------------------- | ---------------------------------------- |
 | `us6_transform_and_track_lineage` | Transform features + track lineage       |
 | `us8_dataops_e2e_pipeline`        | Full DataOps chain (ingest → EDA report) |
 | `daily_churn_scoring`             | Daily scoring pipeline (US-13)           |
 | `us14_weekly_model_monitoring`    | Weekly drift + degradation monitoring    |
-
 
 US-08 task chain:
 `ingest_raw → cleanse → transform_features → track_lineage → trigger_eda → generate_eda_images_report`
@@ -621,29 +667,36 @@ Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to
 ### Option B — Run Airflow natively (macOS only)
 
 1. Install Airflow in a virtual environment:
-  ```bash
-   export AIRFLOW_HOME=~/airflow
-   pip install "apache-airflow==2.9.3" \
-     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.10.txt"
-  ```
+
+```bash
+ export AIRFLOW_HOME=~/airflow
+ pip install "apache-airflow==2.9.3" \
+   --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.10.txt"
+```
+
 2. Initialise the database and create an admin user:
-  ```bash
-   airflow db migrate
-   airflow users create \
-     --username admin --password admin \
-     --firstname Admin --lastname User \
-     --role Admin --email admin@example.com
-  ```
+
+```bash
+ airflow db migrate
+ airflow users create \
+   --username admin --password admin \
+   --firstname Admin --lastname User \
+   --role Admin --email admin@example.com
+```
+
 3. Set environment variables and start Airflow:
-  ```bash
-   export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
-   export PROJECT_ROOT=$(pwd)
-   export POSTGRES_HOST=127.0.0.1
-   export POSTGRES_PORT=5432
-   export POSTGRES_DB=kkbox
-   export POSTGRES_USER=bt4301
-   export POSTGRES_PASSWORD=bt4301pass
-   airflow standalone
-  ```
+
+```bash
+ export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/source/dataops/airflow/dags
+ export PROJECT_ROOT=$(pwd)
+ export POSTGRES_HOST=127.0.0.1
+ export POSTGRES_PORT=5432
+ export POSTGRES_DB=kkbox
+ export POSTGRES_USER=bt4301
+ export POSTGRES_PASSWORD=bt4301pass
+ airflow standalone
+```
+
 4. Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to test, and verify all tasks are green.
+
 
