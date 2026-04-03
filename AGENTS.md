@@ -1,4 +1,4 @@
-# CODEX.md
+# AGENTS.md
 
 ## User stories
 

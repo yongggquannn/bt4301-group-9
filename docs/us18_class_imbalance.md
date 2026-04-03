@@ -6,8 +6,8 @@ Saved to: `docs/artifacts/us18_precision_recall_f1_comparison.csv`
 
 | Strategy | Precision (churn) | Recall (churn) | F1 (churn) | ROC AUC |
 |---|---:|---:|---:|---:|
-| SMOTE | 0.5066 | 0.5308 | 0.5184 | 0.8668 |
-| class_weight="balanced" | 0.3314 | 0.7043 | 0.4507 | 0.8662 |
+| SMOTE | 0.5135 | 0.5385 | 0.5257 | 0.8684 |
+| class_weight="balanced" | 0.3312 | 0.7106 | 0.4518 | 0.8671 |
 
 ## Chosen strategy
 
@@ -22,17 +22,17 @@ Justification:
   "rule": "Choose max churn F1; tie-break with churn recall.",
   "metrics": {
     "smote": {
-      "precision_churn": 0.5065573770491804,
-      "recall_churn": 0.5307758373890639,
-      "f1_churn": 0.5183838948692856,
-      "roc_auc": 0.8668130734069606,
+      "precision_churn": 0.5135135135135135,
+      "recall_churn": 0.5385055825937589,
+      "f1_churn": 0.5257126886528787,
+      "roc_auc": 0.8683588572169842,
       "support_churn": 3493
     },
     "class_weight_balanced": {
-      "precision_churn": 0.3314023979523104,
-      "recall_churn": 0.704265674205554,
-      "f1_churn": 0.4507145474532796,
-      "roc_auc": 0.8662145487149255,
+      "precision_churn": 0.33124249299346054,
+      "recall_churn": 0.7105639851130833,
+      "f1_churn": 0.4518478062989259,
+      "roc_auc": 0.8670596521996147,
       "support_churn": 3493
     }
   }

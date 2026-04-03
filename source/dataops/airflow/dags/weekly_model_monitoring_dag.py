@@ -2,12 +2,15 @@
 Airflow DAG: weekly model monitoring for drift and degradation.
 
 Task chain:
-    compute_and_log_monitoring_metrics -> evaluate_thresholds -> (trigger_alert | no_alert_needed)
+    compute_and_log_monitoring_metrics -> evaluate_thresholds
+        -> log_monitoring_alert -> trigger_retraining
+        -> no_alert_needed
 
 Notes:
     - Computes PSI for top 5 features.
     - Compares current AUC vs baseline and logs delta to PostgreSQL.
-    - Triggers alert when PSI > 0.2 or AUC delta > 0.05.
+    - Automatically triggers the US-21 retraining DAG when PSI > 0.2 or
+      AUC delta > 0.05.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ import numpy as np
 import pandas as pd
 import psycopg2
 from airflow.decorators import dag, task
-from airflow.exceptions import AirflowFailException
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from psycopg2.extras import RealDictCursor
 
 
@@ -170,7 +173,7 @@ def load_baseline_auc_reference() -> tuple[float | None, str]:
 
 @dag(
     dag_id="us14_weekly_model_monitoring",
-    description="US-14 monitoring DAG: PSI + AUC degradation checks with alerting",
+    description="US-14 monitoring DAG: PSI + AUC degradation checks with automatic retraining trigger",
     default_args={
         "owner": "mlops",
         "depends_on_past": False,
@@ -318,6 +321,7 @@ def us14_weekly_model_monitoring():
                 breached_reasons.append(
                     f"AUC degradation threshold breached: delta={auc_delta:.4f} (>0.05)"
                 )
+
             breached = len(breached_reasons) > 0
 
             with conn.cursor() as cur:
@@ -434,12 +438,24 @@ def us14_weekly_model_monitoring():
 
     @task.branch(task_id="evaluate_thresholds")
     def evaluate_thresholds(metrics: dict[str, Any]) -> str:
-        return "trigger_alert" if metrics["breached"] else "no_alert_needed"
+        return "log_monitoring_alert" if metrics["breached"] else "no_alert_needed"
 
-    @task(task_id="trigger_alert")
-    def trigger_alert(metrics: dict[str, Any]) -> None:
-        raise AirflowFailException(
-            "Model monitoring alert triggered. " + " | ".join(metrics.get("breached_reasons", []))
+
+    @task(task_id="log_monitoring_alert")
+    def log_monitoring_alert(metrics: dict[str, Any]) -> None:
+        print(
+            "Model monitoring alert triggered; launching automated retraining.",
+            {
+                "auc_delta": metrics["auc_delta"],
+                "max_psi": metrics["max_psi"],
+                "breached_reasons": metrics["breached_reasons"],
+                "predictions_table": metrics["predictions_table"],
+                "top_5_features": metrics["top_5_features"],
+                "baseline_auc_source": metrics["baseline_auc_source"],
+                "cohort_strategy": metrics["cohort_strategy"],
+                "baseline_row_count": metrics["baseline_row_count"],
+                "current_row_count": metrics["current_row_count"],
+            },
         )
 
     @task(task_id="no_alert_needed")
@@ -460,7 +476,17 @@ def us14_weekly_model_monitoring():
 
     metrics = compute_and_log_monitoring_metrics()
     branch = evaluate_thresholds(metrics)
-    branch >> [trigger_alert(metrics), no_alert_needed(metrics)]
+    alert = log_monitoring_alert(metrics)
+    trigger_retraining = TriggerDagRunOperator(
+        task_id="trigger_retraining",
+        trigger_dag_id="us21_automated_retraining",
+        wait_for_completion=False,
+        reset_dag_run=False,
+    )
+    no_alert = no_alert_needed(metrics)
+
+    branch >> [alert, no_alert]
+    alert >> trigger_retraining
 
 
 dag = us14_weekly_model_monitoring()
