@@ -23,6 +23,13 @@ import mlflow
 from mlflow.exceptions import RestException
 from mlflow.tracking import MlflowClient
 
+from source.mlops.github_dispatch import (
+    DEFAULT_EVENT_TYPE,
+    DEFAULT_GITHUB_API_URL,
+    build_model_promoted_payload,
+    emit_repository_dispatch,
+)
+
 logger = logging.getLogger(__name__)
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -215,6 +222,45 @@ def save_evidence(result: RegistryResult, output_path: Path) -> None:
     logger.info("Evidence saved to %s", output_path)
 
 
+def maybe_emit_model_promoted_event(result: RegistryResult) -> None:
+    repository = os.getenv("GITHUB_DISPATCH_REPO")
+    token = os.getenv("GITHUB_DISPATCH_TOKEN")
+    if not repository or not token:
+        logger.info(
+            "Skipping GitHub repository_dispatch for model promotion because "
+            "GITHUB_DISPATCH_REPO or GITHUB_DISPATCH_TOKEN is not set."
+        )
+        return
+
+    payload = build_model_promoted_payload(
+        model_name=result.model_name,
+        version=result.version,
+        run_id=result.run_id,
+        decision=result.decision,
+        final_stage=result.final_stage,
+        registry_uri=result.registry_uri,
+        challenger_auc=result.challenger_auc,
+        champion_version=result.champion_version,
+        champion_auc=result.champion_auc,
+        promotion_threshold=result.promotion_threshold,
+        auc_margin=result.auc_margin,
+    )
+
+    emit_repository_dispatch(
+        repository=repository,
+        token=token,
+        client_payload=payload,
+        event_type=os.getenv("GITHUB_DISPATCH_EVENT_TYPE", DEFAULT_EVENT_TYPE),
+        github_api_url=os.getenv("GITHUB_API_URL", DEFAULT_GITHUB_API_URL),
+    )
+    logger.info(
+        "Sent GitHub repository_dispatch '%s' for %s version %d.",
+        os.getenv("GITHUB_DISPATCH_EVENT_TYPE", DEFAULT_EVENT_TYPE),
+        result.model_name,
+        result.version,
+    )
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -379,6 +425,9 @@ def main() -> None:
     us20_path = ARTIFACT_DIR / "us20_champion_challenger_registry.json"
     save_evidence(result, us12_path)
     save_evidence(result, us20_path)
+
+    if promote:
+        maybe_emit_model_promoted_event(result)
 
     print(
         f"\nModel '{args.model_name}' v{version} decision: {decision}.\n"

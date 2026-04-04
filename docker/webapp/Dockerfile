@@ -5,8 +5,10 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /tmp/requirements.txt
+COPY docker/webapp/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 WORKDIR /opt/project
+COPY source ./source
+COPY docs ./docs
 CMD ["uvicorn", "source.webapp.app:app", "--host", "0.0.0.0", "--port", "8000"]
