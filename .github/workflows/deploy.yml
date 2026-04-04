@@ -52,7 +52,7 @@ jobs:
       - name: Run tests
         run: pytest -q tests
 
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -61,16 +61,6 @@ jobs:
 
       - name: Build Docker image
         run: docker build -f docker/webapp/Dockerfile -t bt4301-webapp:ci .
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Build deployment image
-        run: docker build -f docker/webapp/Dockerfile -t bt4301-webapp:deploy .
 
       - name: Deploy web app container
         run: |
@@ -81,7 +71,7 @@ jobs:
             -e POSTGRES_DB=kkbox \
             -e POSTGRES_USER=bt4301 \
             -e POSTGRES_PASSWORD=bt4301pass \
-            bt4301-webapp:deploy
+            bt4301-webapp:ci
 
       - name: Smoke test deployment
         run: |
