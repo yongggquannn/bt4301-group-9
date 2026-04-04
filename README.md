@@ -699,4 +699,25 @@ Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to
 
 4. Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to test, and verify all tasks are green.
 
+---
 
+## Testing
+
+### Unit / Smoke Tests (CI)
+
+Run all non-integration tests (no Docker stack required):
+
+```bash
+pytest -q tests source/tests -m "not integration"
+```
+
+### End-to-End Integration Test (Local)
+
+Requires the full Docker Compose stack running with a production model registered in MLflow:
+
+```bash
+docker compose up -d
+pytest source/tests/test_e2e_integration.py -v -s
+```
+
+The test triggers the DataOps DAG, waits for completion, triggers the Scoring DAG, then queries the webapp `/customer/{id}/churn-risk` API and asserts a valid churn score is returned.

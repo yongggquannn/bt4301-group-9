@@ -16,3 +16,4 @@ shap
 fastapi
 uvicorn[standard]
 jinja2
+requests
