@@ -184,10 +184,10 @@
 
 | Acceptance Criteria                                              | Status |
 | ---------------------------------------------------------------- | ------ |
-| `.github/workflows/deploy.yml` committed to repo                 | Todo   |
-| Workflow triggers on push to `main` and on model promotion event | Todo   |
+| `.github/workflows/deploy.yml` committed to repo                 | Done   |
+| Workflow triggers on push to `main` and on model promotion event | Done   |
 | Pipeline steps: lint → test → build Docker image → deploy        | Todo   |
-| Screenshot of successful Actions run                             | Todo   |
+| Screenshot of successful Actions run                             | **Screenshot needed** |
 
 ### US-25 — Docker Compose Full Stack
 
