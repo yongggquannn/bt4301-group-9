@@ -201,9 +201,9 @@
 
 | Acceptance Criteria                        | Status |
 | ------------------------------------------ | ------ |
-| Integration test script in `source/tests/` | Todo   |
-| All assertions pass                        | Todo   |
-| Screenshot of test output                  | Todo   |
+| Integration test script in `source/tests/` | Done   |
+| All assertions pass                        | Done   |
+| Screenshot of test output                  | **Screenshot needed** |
 
 ---
 
