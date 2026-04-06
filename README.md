@@ -12,9 +12,11 @@ Matches the Canvas submission layout (Week 13 zip):
 │   └── peer_learning_slides.pptx # Slide deck for peer learning session
 │
 ├── source/                  # Submission: source subfolder
-│   ├── dataops/                 # DataOps sprint (.py, .ipynb)
-│   ├── mlops/                   # MLOps sprint (.py, .ipynb)
-│   └── (root-level scripts)
+│   ├── common/                  # Shared utilities (dag_utils, db, monitoring_utils)
+│   ├── dataops/                 # DataOps pipeline scripts and Airflow DAGs
+│   ├── mlops/                   # MLOps pipeline scripts
+│   ├── webapp/                  # FastAPI churn-risk web application
+│   └── tests/                   # Integration and unit tests
 │
 ├── data/                    # Submission: data subfolder
 │   ├── raw/                     # Raw datasets
@@ -25,6 +27,18 @@ Matches the Canvas submission layout (Week 13 zip):
 ```
 
 **Note:** Remove `.gitkeep` files from `docs/`, `source/dataops/`, `source/mlops/`, `data/raw/`, and `data/processed/` before creating the final submission zip.
+
+---
+
+## Shared Modules (`source/common/`)
+
+These utilities are imported by all Airflow DAGs and pipeline scripts — do not run them directly.
+
+| Module                | Purpose                                                        |
+| --------------------- | -------------------------------------------------------------- |
+| `dag_utils.py`        | `run_python_script()` — subprocess runner used by all DAGs     |
+| `db.py`               | `get_connection()`, `get_db_config()` — PostgreSQL helpers     |
+| `monitoring_utils.py` | `compute_psi()`, `roc_auc_binary()` — drift computation        |
 
 ---
 
@@ -450,20 +464,20 @@ LIMIT 3;
 
 ---
 
-### Step 14 — Model governance artifacts (US-15)
+### Step 14 — Model governance artifacts
 
-The production training flow in `source/mlops/train_model.py` now writes model-governance artifacts for the best model and logs them to MLflow.
+Governance artifacts are written automatically during `train_model.py` (Step 7) via `source/mlops/governance.py` — no separate script is needed.
 
-Expected local artifacts in `docs/artifacts/`:
+**What `governance.py` generates:**
 
-- `model_card.md`
-- `feature_list_types.csv`
-- `fairness_gender.csv`
-- `fairness_age_band.csv`
+| Artifact                 | Description                                         |
+| ------------------------ | --------------------------------------------------- |
+| `model_card.md`          | Training metadata, feature list, validation metrics |
+| `feature_list_types.csv` | Feature names and data types                        |
+| `fairness_gender.csv`    | Churn rates and prediction rates by gender          |
+| `fairness_age_band.csv`  | Churn rates and prediction rates by age band        |
 
-Governance evidence guide:
-
-- `docs/governance_evidence.md`
+All artifacts are written to `docs/artifacts/` and logged to MLflow under the best model's run. Evidence guide: `docs/governance_evidence.md`
 
 ---
 
@@ -590,23 +604,36 @@ Expected results:
 
 Current DAGs:
 
-| DAG name                          | Description                              |
-| --------------------------------- | ---------------------------------------- |
-| `us6_transform_and_track_lineage` | Transform features + track lineage       |
-| `dataops_e2e_pipeline`        | Full DataOps chain (ingest → EDA report) |
-| `daily_churn_scoring`             | Daily scoring pipeline (US-13)           |
-| `weekly_model_monitoring`    | Weekly drift + degradation monitoring    |
+| DAG name                         | Description                                           |
+| -------------------------------- | ----------------------------------------------------- |
+| `transform_and_track_lineage`    | Transform features + track lineage                    |
+| `dataops_e2e_pipeline`           | Full DataOps chain (ingest → EDA report)              |
+| `daily_churn_scoring`            | Daily scoring pipeline                                |
+| `weekly_model_monitoring`        | Weekly drift + degradation monitoring                 |
+| `automated_retraining`           | Retraining triggered when drift thresholds are breached |
 
-US-08 task chain:
+### DAG Schedules
+
+| DAG                            | Schedule     | How Triggered                                                                          |
+| ------------------------------ | ------------ | -------------------------------------------------------------------------------------- |
+| `transform_and_track_lineage`  | Manual       | Trigger manually in Airflow UI                                                         |
+| `dataops_e2e_pipeline`         | Manual       | Trigger manually in Airflow UI                                                         |
+| `daily_churn_scoring`          | `@daily`     | Auto-runs daily; can also be triggered manually                                        |
+| `weekly_model_monitoring`      | `@weekly`    | Auto-runs weekly; triggers `automated_retraining` when PSI > 0.2 or AUC delta > 0.05  |
+| `automated_retraining`         | Event-driven | Triggered automatically by `weekly_model_monitoring` when drift thresholds are breached |
+
+### Task chains
+
+`dataops_e2e_pipeline`:
 `ingest_raw → cleanse → transform_features → track_lineage → trigger_eda → generate_eda_images_report`
 
-### Option A — Run Airflow via Docker (recommended for both macOS and Windows)
-
-US-13 task chain:
+`daily_churn_scoring`:
 `load_features -> load_production_model -> score -> write_predictions`
 
-US-14 task chain:
+`weekly_model_monitoring`:
 `compute_and_log_monitoring_metrics -> evaluate_thresholds -> (trigger_alert | no_alert_needed)`
+
+### Option A — Run Airflow via Docker (recommended for both macOS and Windows)
 
 This is the easiest approach and avoids platform compatibility issues.
 
