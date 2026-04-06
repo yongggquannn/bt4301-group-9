@@ -68,9 +68,9 @@ jobs:
           docker run -d --name bt4301-webapp-ci -p 8000:8000 \
             -e POSTGRES_HOST=placeholder \
             -e POSTGRES_PORT=5432 \
-            -e POSTGRES_DB=kkbox \
-            -e POSTGRES_USER=bt4301 \
-            -e POSTGRES_PASSWORD=bt4301pass \
+            -e POSTGRES_DB=${{ secrets.POSTGRES_DB || 'kkbox' }} \
+            -e POSTGRES_USER=${{ secrets.POSTGRES_USER || 'ci_user' }} \
+            -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'ci_placeholder' }} \
             bt4301-webapp:ci
 
       - name: Smoke test deployment

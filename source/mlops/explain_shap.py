@@ -10,6 +10,7 @@ import argparse
 import json
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,16 +39,13 @@ logger = logging.getLogger(__name__)
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
 ARTIFACT_DIR = _PROJECT_ROOT / "docs" / "artifacts"
 DEFAULT_TRACKING_URI = "http://localhost:5001"
 
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
-    "user": os.getenv("POSTGRES_USER", "bt4301"),
-    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-}
+from source.common.db import get_db_config
+
+DB_CONFIG = get_db_config()
 
 _REGISTRY_URI = "models:/KKBox-Churn-Classifier/Production"
 _LOCAL_MODEL_DIR = _PROJECT_ROOT / "data" / "scoring"

@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import imblearn  # noqa: F401
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
 import joblib
 import mlflow
 import numpy as np
@@ -27,13 +30,9 @@ from sklearn.preprocessing import StandardScaler
 
 DEFAULT_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
-    "user": os.getenv("POSTGRES_USER", "bt4301"),
-    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-}
+from source.common.db import get_db_config
+
+DB_CONFIG = get_db_config()
 
 
 FEATURE_TABLE_SQL = """

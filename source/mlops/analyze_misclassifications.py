@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -21,13 +22,10 @@ import psycopg2
 import seaborn as sns
 from imblearn.over_sampling import SMOTE
 from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.utils.class_weight import compute_sample_weight
 try:
     from xgboost import XGBClassifier
@@ -36,41 +34,23 @@ except Exception:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 ARTIFACT_DIR = PROJECT_ROOT / "docs" / "artifacts"
 FEATURE_SET_PATH = ARTIFACT_DIR / "final_feature_set.json"
 IMBALANCE_STRATEGY_PATH = ARTIFACT_DIR / "us18_chosen_strategy.json"
 
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
-    "user": os.getenv("POSTGRES_USER", "bt4301"),
-    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-}
+from source.common.db import get_db_config
+from train_model import (
+    CATEGORICAL_FEATURES,
+    _split_columns,
+    build_preprocessor as _build_preprocessor,
+    load_imbalance_strategy,
+    load_selected_features,
+)
 
-CATEGORICAL_FEATURES = {
-    "gender",
-    "city",
-    "registered_via",
-    "latest_payment_method_id",
-    "latest_is_auto_renew",
-}
+DB_CONFIG = get_db_config()
 
 MODEL_CHOICES = ("logistic_regression", "xgboost", "mlp")
-
-
-def load_selected_features() -> list[str]:
-    with open(FEATURE_SET_PATH, encoding="utf-8") as fh:
-        payload = json.load(fh)
-    return payload["selected_features"]
-
-
-def load_imbalance_strategy() -> str:
-    if not IMBALANCE_STRATEGY_PATH.exists():
-        return "class_weight_balanced"
-    with open(IMBALANCE_STRATEGY_PATH, encoding="utf-8") as fh:
-        payload = json.load(fh)
-    return payload.get("chosen_strategy", "class_weight_balanced")
 
 
 def load_feature_store(selected_features: list[str], sample_rows: int | None, seed: int) -> pd.DataFrame:
@@ -88,23 +68,8 @@ def load_feature_store(selected_features: list[str], sample_rows: int | None, se
 
 
 def build_preprocessor(features: list[str]) -> ColumnTransformer:
-    cat_cols = [f for f in features if f in CATEGORICAL_FEATURES]
-    num_cols = [f for f in features if f not in CATEGORICAL_FEATURES]
-
-    numeric_pipe = Pipeline(
-        steps=[("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler())]
-    )
-    categorical_pipe = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(strategy="most_frequent")),
-            ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-        ]
-    )
-    return ColumnTransformer(
-        transformers=[("num", numeric_pipe, num_cols), ("cat", categorical_pipe, cat_cols)],
-        remainder="drop",
-        verbose_feature_names_out=False,
-    )
+    cat_cols, num_cols = _split_columns(features)
+    return _build_preprocessor(cat_cols, num_cols)
 
 
 def make_model(model_name: str, seed: int, pos_weight: float, strategy: str) -> tuple[Any, bool]:

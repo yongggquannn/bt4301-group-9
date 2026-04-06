@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,7 @@ from psycopg2.extras import RealDictCursor
 
 
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", Path(__file__).resolve().parents[4]))
+sys.path.insert(0, str(PROJECT_ROOT))
 ARTIFACT_DIR = PROJECT_ROOT / "docs" / "artifacts"
 FEATURE_SELECTION_SCRIPT = PROJECT_ROOT / "source" / "mlops" / "feature_selection.py"
 IMBALANCE_SCRIPT = PROJECT_ROOT / "source" / "mlops" / "train_us18_class_imbalance.py"
@@ -41,14 +44,7 @@ AUC_DELTA_THRESHOLD = float(os.getenv("MONITORING_AUC_DELTA_THRESHOLD", "0.05"))
 PROMOTION_THRESHOLD = float(os.getenv("CHAMPION_CHALLENGER_THRESHOLD", "0.0"))
 
 
-def get_pg_conn():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST", "127.0.0.1"),
-        port=int(os.getenv("POSTGRES_PORT", "5432")),
-        dbname=os.getenv("POSTGRES_DB", "kkbox"),
-        user=os.getenv("POSTGRES_USER", "bt4301"),
-        password=os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-    )
+from source.common.db import get_connection as get_pg_conn
 
 
 @dag(
@@ -175,11 +171,16 @@ def us21_automated_retraining():
         )
         if not REGISTER_SCRIPT.exists():
             raise FileNotFoundError(f"Script not found: {REGISTER_SCRIPT}")
-        exit_code = os.system(
-            f'python -B "{REGISTER_SCRIPT}" --promotion-threshold "{PROMOTION_THRESHOLD}"'
+        result = subprocess.run(
+            [sys.executable, "-B", str(REGISTER_SCRIPT),
+             "--promotion-threshold", str(PROMOTION_THRESHOLD)],
+            capture_output=True, text=True, check=False,
+            cwd=str(PROJECT_ROOT),
         )
-        if exit_code != 0:
-            raise RuntimeError(f"register_model.py failed with exit code {exit_code}")
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"register_model.py failed (exit {result.returncode}):\n{result.stderr}"
+            )
 
         registry_payload = {}
         if US20_REGISTRY_PATH.exists():
