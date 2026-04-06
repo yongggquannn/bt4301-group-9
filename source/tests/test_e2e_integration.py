@@ -38,7 +38,7 @@ WEBAPP_BASE_URL = os.getenv("WEBAPP_BASE_URL", "http://localhost:8000")
 AIRFLOW_USER = os.getenv("AIRFLOW_ADMIN_USER", "admin")
 AIRFLOW_PASSWORD = os.getenv("AIRFLOW_ADMIN_PASSWORD", "admin")
 
-DATAOPS_DAG_ID = "us8_dataops_e2e_pipeline"
+DATAOPS_DAG_ID = "dataops_e2e_pipeline"
 SCORING_DAG_ID = "daily_churn_scoring"
 
 DATAOPS_TIMEOUT = int(os.getenv("E2E_DATAOPS_TIMEOUT", "600"))

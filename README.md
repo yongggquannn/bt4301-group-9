@@ -108,7 +108,7 @@ First build takes several minutes (installing ML dependencies in the Airflow ima
 ### Running the Pipelines
 
 1. Open the Airflow UI at [http://localhost:8080](http://localhost:8080)
-2. Trigger `us8_dataops_e2e_pipeline` to run the full DataOps chain (ingest → EDA)
+2. Trigger `dataops_e2e_pipeline` to run the full DataOps chain (ingest → EDA)
 3. After DataOps completes, trigger `daily_churn_scoring` to generate predictions
 4. Visit [http://localhost:8000/dashboard](http://localhost:8000/dashboard) to see scored customers
 
@@ -236,18 +236,18 @@ Outputs are written to `docs/artifacts/` and logged to the MLflow tracking serve
 Runs two MLflow experiments comparing SMOTE oversampling vs. `class_weight="balanced"` model training.
 
 ```bash
-python source/mlops/train_us18_class_imbalance.py
+python source/mlops/train_class_imbalance.py
 ```
 
-Evidence artifacts are written to `docs/artifacts/` and logged to MLflow (including `us18_chosen_strategy.json` for the next step).
+Evidence artifacts are written to `docs/artifacts/` and logged to MLflow (including `chosen_strategy.json` for the next step).
 
 ---
 
 ### Step 7 — Train and compare models (US-10)
 
-Trains Logistic Regression, XGBoost, and MLP on `processed.customer_features` using the feature list from Step 5 and (if present) the imbalance strategy from Step 6. Logs metrics and plots to MLflow; writes comparison artifacts to `docs/artifacts/` (e.g. `us10_model_comparison.csv`, `us10_best_model.json`).
+Trains Logistic Regression, XGBoost, and MLP on `processed.customer_features` using the feature list from Step 5 and (if present) the imbalance strategy from Step 6. Logs metrics and plots to MLflow; writes comparison artifacts to `docs/artifacts/` (e.g. `model_comparison.csv`, `best_model.json`).
 
-**Prerequisites:** Steps 4–6 recommended (Step 6 can be skipped—training falls back to a default imbalance strategy if `us18_chosen_strategy.json` is missing).
+**Prerequisites:** Steps 4–6 recommended (Step 6 can be skipped—training falls back to a default imbalance strategy if `chosen_strategy.json` is missing).
 
 ```bash
 python source/mlops/train_model.py
@@ -279,10 +279,10 @@ python source/mlops/tune_hyperparams.py --n-trials 5 --sample-rows 5000
 
 Outputs in `docs/artifacts/`:
 
-- `us17_best_hyperparams.json` — best params and AUC-ROC
-- `us17_optimization_curve.png` — Optuna optimisation history
-- `us17_param_importance.png` — hyperparameter importance
-- `us17_improvement_summary.md` — baseline vs tuned comparison
+- `best_hyperparams.json` — best params and AUC-ROC
+- `optimization_curve.png` — Optuna optimisation history
+- `param_importance.png` — hyperparameter importance
+- `improvement_summary.md` — baseline vs tuned comparison
 
 ---
 
@@ -304,12 +304,12 @@ python source/mlops/analyze_misclassifications.py --sample-rows 5000 --model xgb
 
 Outputs:
 
-- `docs/us22_misclassification_analysis.md`
-- `docs/artifacts/us22_confusion_breakdown.json`
-- `docs/artifacts/us22_misclassified_cases.csv`
-- `docs/artifacts/us22_numeric_distribution_comparison.csv`
-- `docs/artifacts/us22_categorical_distribution_comparison.csv`
-- `docs/artifacts/us22_feature_distribution_plot.png`
+- `docs/misclassification_analysis.md`
+- `docs/artifacts/confusion_breakdown.json`
+- `docs/artifacts/misclassified_cases.csv`
+- `docs/artifacts/numeric_distribution_comparison.csv`
+- `docs/artifacts/categorical_distribution_comparison.csv`
+- `docs/artifacts/feature_distribution_plot.png`
 
 ---
 
@@ -337,9 +337,9 @@ python source/mlops/register_model.py --promotion-threshold 0.005
 
 Evidence is saved to:
 
-- `docs/artifacts/us12_model_registry.json`
-- `docs/artifacts/us20_champion_challenger_registry.json`
-- `docs/us20_champion_challenger_evidence.md`
+- `docs/artifacts/model_registry.json`
+- `docs/artifacts/champion_challenger_registry.json`
+- `docs/champion_challenger_evidence.md`
 
 Visit the MLflow UI at [http://localhost:5001/#/models/KKBox-Churn-Classifier](http://localhost:5001/#/models/KKBox-Churn-Classifier) to view:
 
@@ -415,7 +415,7 @@ Generates SHAP values for the production churn model, producing a summary plot (
 **If upgrading an existing database** (table already exists without the `shap_values` column), run the migration first:
 
 ```bash
-docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/migrations/us19_add_shap_values.sql
+docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/migrations/add_shap_values.sql
 ```
 
 **Run the SHAP script:**
@@ -434,10 +434,10 @@ python source/mlops/explain_shap.py
 
 **Artifacts produced (in `docs/artifacts/`):**
 
-- `us19_shap_summary.png` — SHAP beeswarm summary plot
-- `us19_shap_waterfall_high.png` — Waterfall plot for a high-risk customer
-- `us19_shap_waterfall_medium.png` — Waterfall plot for a medium-risk customer
-- `us19_shap_waterfall_low.png` — Waterfall plot for a low-risk customer
+- `shap_summary.png` — SHAP beeswarm summary plot
+- `shap_waterfall_high.png` — Waterfall plot for a high-risk customer
+- `shap_waterfall_medium.png` — Waterfall plot for a medium-risk customer
+- `shap_waterfall_low.png` — Waterfall plot for a low-risk customer
 
 **Verify DB update:**
 
@@ -456,14 +456,14 @@ The production training flow in `source/mlops/train_model.py` now writes model-g
 
 Expected local artifacts in `docs/artifacts/`:
 
-- `us15_model_card.md`
-- `us15_feature_list_types.csv`
-- `us15_fairness_gender.csv`
-- `us15_fairness_age_band.csv`
+- `model_card.md`
+- `feature_list_types.csv`
+- `fairness_gender.csv`
+- `fairness_age_band.csv`
 
 Governance evidence guide:
 
-- `docs/us15_governance_evidence.md`
+- `docs/governance_evidence.md`
 
 ---
 
@@ -480,7 +480,7 @@ It:
 - logs results into `processed.model_monitoring_results`
 - triggers an alert task if `PSI > 0.2` or `AUC delta > 0.05`
 
-After triggering `daily_churn_scoring` and `us14_weekly_model_monitoring` in Airflow, connect to PostgreSQL and run:
+After triggering `daily_churn_scoring` and `weekly_model_monitoring` in Airflow, connect to PostgreSQL and run:
 
 ```sql
 SELECT
@@ -505,7 +505,7 @@ This query is the main evidence query for `US-14` because it shows the stored PS
 
 Monitoring evidence guide:
 
-- `docs/us14_monitoring_evidence.md`
+- `docs/monitoring_evidence.md`
 
 ---
 
@@ -528,9 +528,9 @@ Retraining trigger rule:
 
 Evidence artifacts:
 
-- `docs/artifacts/us21_retraining_evaluation.json`
-- `docs/artifacts/us21_retraining_decision.json`
-- `docs/us21_retraining_evidence.md`
+- `docs/artifacts/retraining_evaluation.json`
+- `docs/artifacts/retraining_decision.json`
+- `docs/retraining_evidence.md`
 
 The DAG uses `source/mlops/register_model.py`, so the final promotion step still goes through the champion-challenger gate from US-20.
 
@@ -593,9 +593,9 @@ Current DAGs:
 | DAG name                          | Description                              |
 | --------------------------------- | ---------------------------------------- |
 | `us6_transform_and_track_lineage` | Transform features + track lineage       |
-| `us8_dataops_e2e_pipeline`        | Full DataOps chain (ingest → EDA report) |
+| `dataops_e2e_pipeline`        | Full DataOps chain (ingest → EDA report) |
 | `daily_churn_scoring`             | Daily scoring pipeline (US-13)           |
-| `us14_weekly_model_monitoring`    | Weekly drift + degradation monitoring    |
+| `weekly_model_monitoring`    | Weekly drift + degradation monitoring    |
 
 US-08 task chain:
 `ingest_raw → cleanse → transform_features → track_lineage → trigger_eda → generate_eda_images_report`
@@ -658,7 +658,7 @@ docker run --name airflow-us8 --rm -it -p 8080:8080 ^
   bash -lc "pip install psycopg2-binary pandas numpy matplotlib seaborn scikit-learn mlflow xgboost imbalanced-learn joblib && airflow standalone"
 ```
 
-Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to test, and verify all tasks are green. For the MLOps flow, the usual order is `daily_churn_scoring` followed by `us14_weekly_model_monitoring`.
+Open [http://localhost:8080](http://localhost:8080), trigger the DAG you want to test, and verify all tasks are green. For the MLOps flow, the usual order is `daily_churn_scoring` followed by `weekly_model_monitoring`.
 
 > **Windows note:** Native Airflow is not supported on Windows due to `fcntl` import errors. Use the Docker method above.
 

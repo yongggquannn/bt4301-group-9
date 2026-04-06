@@ -10,9 +10,9 @@
 
 ## Feature distribution comparison (misclassified vs correctly classified)
 
-- Numeric summary: `docs/artifacts/us22_numeric_distribution_comparison.csv`
-- Categorical summary: `docs/artifacts/us22_categorical_distribution_comparison.csv`
-- Plot: `docs/artifacts/us22_feature_distribution_plot.png`
+- Numeric summary: `docs/artifacts/numeric_distribution_comparison.csv`
+- Categorical summary: `docs/artifacts/categorical_distribution_comparison.csv`
+- Plot: `docs/artifacts/feature_distribution_plot.png`
 
 ## Actionable insights
 

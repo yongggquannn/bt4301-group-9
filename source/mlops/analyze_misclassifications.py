@@ -37,7 +37,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 ARTIFACT_DIR = PROJECT_ROOT / "docs" / "artifacts"
 FEATURE_SET_PATH = ARTIFACT_DIR / "final_feature_set.json"
-IMBALANCE_STRATEGY_PATH = ARTIFACT_DIR / "us18_chosen_strategy.json"
+IMBALANCE_STRATEGY_PATH = ARTIFACT_DIR / "chosen_strategy.json"
 
 from source.common.db import get_db_config
 from train_model import (
@@ -385,12 +385,12 @@ def main() -> None:
 
     insights = derive_actionable_insights(numeric_rows, categorical_rows, confusion)
 
-    misclassified_cases_path = ARTIFACT_DIR / "us22_misclassified_cases.csv"
-    numeric_summary_path = ARTIFACT_DIR / "us22_numeric_distribution_comparison.csv"
-    categorical_summary_path = ARTIFACT_DIR / "us22_categorical_distribution_comparison.csv"
-    confusion_json_path = ARTIFACT_DIR / "us22_confusion_breakdown.json"
-    plot_path = ARTIFACT_DIR / "us22_feature_distribution_plot.png"
-    report_path = PROJECT_ROOT / "docs" / "us22_misclassification_analysis.md"
+    misclassified_cases_path = ARTIFACT_DIR / "misclassified_cases.csv"
+    numeric_summary_path = ARTIFACT_DIR / "numeric_distribution_comparison.csv"
+    categorical_summary_path = ARTIFACT_DIR / "categorical_distribution_comparison.csv"
+    confusion_json_path = ARTIFACT_DIR / "confusion_breakdown.json"
+    plot_path = ARTIFACT_DIR / "feature_distribution_plot.png"
+    report_path = PROJECT_ROOT / "docs" / "misclassification_analysis.md"
 
     case_df.to_csv(misclassified_cases_path, index=False)
     numeric_df.to_csv(numeric_summary_path, index=False)

@@ -10,22 +10,22 @@ python source/mlops/train_model.py
 
 Check `docs/artifacts/` for:
 
-- `us15_model_card.md`
-- `us15_feature_list_types.csv`
-- `us15_fairness_gender.csv`
-- `us15_fairness_age_band.csv`
+- `model_card.md`
+- `feature_list_types.csv`
+- `fairness_gender.csv`
+- `fairness_age_band.csv`
 
 ## Expected MLflow evidence
 
-Open the best-model run from `docs/artifacts/us10_best_model.json` and confirm the run has:
+Open the best-model run from `docs/artifacts/best_model.json` and confirm the run has:
 
-- tag `us15_model_governance=true`
+- tag `model_governance=true`
 - tag `production_candidate=true`
 - artifacts:
-  - `us15_model_card.md`
-  - `us15_feature_list_types.csv`
-  - `us15_fairness_gender.csv`
-  - `us15_fairness_age_band.csv`
+  - `model_card.md`
+  - `feature_list_types.csv`
+  - `fairness_gender.csv`
+  - `fairness_age_band.csv`
 
 ## Acceptance checks
 

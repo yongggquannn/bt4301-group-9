@@ -313,7 +313,7 @@ def pick_sample_customers(predictions_df: pd.DataFrame) -> list[SampleCustomer]:
 def plot_summary(shap_explanation: shap.Explanation) -> Path:
     """Generate a SHAP summary (beeswarm) plot and save to disk."""
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    path = ARTIFACT_DIR / "us19_shap_summary.png"
+    path = ARTIFACT_DIR / "shap_summary.png"
 
     shap.summary_plot(shap_explanation, show=False)
     plt.tight_layout()
@@ -330,7 +330,7 @@ def plot_summary(shap_explanation: shap.Explanation) -> Path:
 def plot_waterfall(shap_explanation: shap.Explanation, sample: SampleCustomer) -> Path:
     """Generate a SHAP waterfall plot for one customer."""
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    path = ARTIFACT_DIR / f"us19_shap_waterfall_{sample.tier}.png"
+    path = ARTIFACT_DIR / f"shap_waterfall_{sample.tier}.png"
 
     shap.waterfall_plot(shap_explanation[sample.index], show=False)
     plt.tight_layout()

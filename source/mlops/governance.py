@@ -74,7 +74,7 @@ def build_group_fairness_table(
     return out.sort_values(group_col, kind="mergesort").reset_index(drop=True)
 
 
-def write_us15_governance_artifacts(
+def write_governance_artifacts(
     *,
     model_name: str,
     selected_features: list[str],
@@ -108,10 +108,10 @@ def write_us15_governance_artifacts(
         group_col="age_band",
     )
 
-    model_card_path = ARTIFACT_DIR / "us15_model_card.md"
-    feature_types_path = ARTIFACT_DIR / "us15_feature_list_types.csv"
-    fairness_gender_path = ARTIFACT_DIR / "us15_fairness_gender.csv"
-    fairness_age_band_path = ARTIFACT_DIR / "us15_fairness_age_band.csv"
+    model_card_path = ARTIFACT_DIR / "model_card.md"
+    feature_types_path = ARTIFACT_DIR / "feature_list_types.csv"
+    fairness_gender_path = ARTIFACT_DIR / "fairness_gender.csv"
+    fairness_age_band_path = ARTIFACT_DIR / "fairness_age_band.csv"
 
     feature_types.to_csv(feature_types_path, index=False)
     fairness_gender.to_csv(fairness_gender_path, index=False)

@@ -4,7 +4,7 @@ Use this checklist to capture evidence for the weekly monitoring user story.
 
 ## 1) Airflow DAG screenshot
 
-Capture a screenshot of DAG `us14_weekly_model_monitoring` in Airflow Graph/Grid view after a run.
+Capture a screenshot of DAG `weekly_model_monitoring` in Airflow Graph/Grid view after a run.
 
 ## 2) Sample monitoring results
 

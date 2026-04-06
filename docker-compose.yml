@@ -109,7 +109,7 @@ services:
     restart: unless-stopped
 
   # Note: The webapp serves full results only after Airflow DAGs have run
-  # (us8_dataops_e2e_pipeline + daily_churn_scoring). On a fresh start it
+  # (dataops_e2e_pipeline + daily_churn_scoring). On a fresh start it
   # will show an empty dashboard until predictions are generated.
   webapp:
     build:

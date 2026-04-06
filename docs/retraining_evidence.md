@@ -6,7 +6,7 @@ Show that the retraining DAG only runs the full retraining path when the latest 
 ## Trigger the DAG
 Open Airflow and trigger:
 
-- `us21_automated_retraining`
+- `automated_retraining`
 
 ## DAG structure
 Expected task chain:
@@ -26,17 +26,17 @@ The DAG should retrain only when the latest row in `processed.model_monitoring_r
 ## Check evidence artifacts
 Confirm these files exist after a triggered retraining run:
 
-- `docs/artifacts/us21_retraining_evaluation.json`
-- `docs/artifacts/us21_retraining_decision.json`
+- `docs/artifacts/retraining_evaluation.json`
+- `docs/artifacts/retraining_decision.json`
 
-`us21_retraining_evaluation.json` should include the newly selected best model and metrics from the retraining run.
+`retraining_evaluation.json` should include the newly selected best model and metrics from the retraining run.
 
-`us21_retraining_decision.json` should include:
+`retraining_decision.json` should include:
 
 - the registration timestamp
 - the promotion threshold passed to champion-challenger registration
 - the evaluation payload
-- the final registry decision from `us20_champion_challenger_registry.json`
+- the final registry decision from `champion_challenger_registry.json`
 
 ## Airflow screenshot
 Capture a screenshot showing:

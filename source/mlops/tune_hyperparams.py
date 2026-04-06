@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
 ARTIFACT_DIR = _PROJECT_ROOT / "docs" / "artifacts"
 
-# Sprint-2 baseline from docs/artifacts/us10_best_model.json
+# Sprint-2 baseline from docs/artifacts/best_model.json
 BASELINE_AUC = 0.9826
 N_TRIALS_DEFAULT = 30
 
@@ -147,7 +147,7 @@ def save_best_params(study: optuna.Study) -> Path:
         "baseline_roc_auc": BASELINE_AUC,
         "improvement": study.best_value - BASELINE_AUC,
     }
-    path = ARTIFACT_DIR / "us17_best_hyperparams.json"
+    path = ARTIFACT_DIR / "best_hyperparams.json"
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     logger.info("Best params saved to %s", path)
     return path
@@ -159,7 +159,7 @@ def save_optimization_curve(study: optuna.Study) -> Path:
     fig = ax.get_figure()
     if fig is None:
         raise RuntimeError("plot_optimization_history returned an Axes with no Figure")
-    path = ARTIFACT_DIR / "us17_optimization_curve.png"
+    path = ARTIFACT_DIR / "optimization_curve.png"
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     logger.info("Optimisation curve saved to %s", path)
@@ -172,7 +172,7 @@ def save_param_importance(study: optuna.Study) -> Path:
     fig = ax.get_figure()
     if fig is None:
         raise RuntimeError("plot_param_importances returned an Axes with no Figure")
-    path = ARTIFACT_DIR / "us17_param_importance.png"
+    path = ARTIFACT_DIR / "param_importance.png"
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     logger.info("Param importance saved to %s", path)
@@ -202,7 +202,7 @@ def save_improvement_summary(study: optuna.Study) -> Path:
         lines.append(f"| {k} | {v} |")
     lines.append("")
 
-    path = ARTIFACT_DIR / "us17_improvement_summary.md"
+    path = ARTIFACT_DIR / "improvement_summary.md"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     logger.info("Improvement summary saved to %s", path)
     return path
@@ -234,7 +234,7 @@ def main() -> None:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
 
     study = optuna.create_study(
-        study_name="us17-xgboost-hpo",
+        study_name="xgboost-hpo",
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=args.seed),
     )

@@ -50,7 +50,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 ARTIFACT_DIR = _PROJECT_ROOT / "docs" / "artifacts"
 FEATURE_SET_PATH = ARTIFACT_DIR / "final_feature_set.json"
-IMBALANCE_STRATEGY_PATH = ARTIFACT_DIR / "us18_chosen_strategy.json"
+IMBALANCE_STRATEGY_PATH = ARTIFACT_DIR / "chosen_strategy.json"
 
 EXPERIMENT_NAME = "KKBox Churn"
 
@@ -294,7 +294,7 @@ def plot_confusion_matrix(
     ax.set_xlabel("Predicted")
     ax.set_ylabel("Actual")
     ax.set_title(f"Confusion Matrix — {model_name}")
-    path = ARTIFACT_DIR / f"us10_confusion_matrix_{slug}.png"
+    path = ARTIFACT_DIR / f"confusion_matrix_{slug}.png"
     fig.savefig(path, bbox_inches="tight", dpi=150)
     plt.close(fig)
     return path
@@ -313,7 +313,7 @@ def plot_feature_importance(
     ax.barh(np.array(feature_names)[idx], importances[idx])
     ax.set_xlabel("Importance")
     ax.set_title(f"Feature Importance — {model_name}")
-    path = ARTIFACT_DIR / f"us10_feature_importance_{slug}.png"
+    path = ARTIFACT_DIR / f"feature_importance_{slug}.png"
     fig.savefig(path, bbox_inches="tight", dpi=150)
     plt.close(fig)
     return path
@@ -394,7 +394,7 @@ def log_mlflow_run(
 
 from governance import (
     build_group_fairness_table,
-    write_us15_governance_artifacts,
+    write_governance_artifacts,
 )
 
 
@@ -626,9 +626,9 @@ def main() -> None:
 
     best = max(results, key=lambda r: r.roc_auc)
 
-    comparison_csv = ARTIFACT_DIR / "us10_model_comparison.csv"
-    comparison_md = ARTIFACT_DIR / "us10_model_comparison.md"
-    best_json = ARTIFACT_DIR / "us10_best_model.json"
+    comparison_csv = ARTIFACT_DIR / "model_comparison.csv"
+    comparison_md = ARTIFACT_DIR / "model_comparison.md"
+    best_json = ARTIFACT_DIR / "best_model.json"
 
     comparison.to_csv(comparison_csv, index=False)
     comparison_md.write_text(
@@ -652,7 +652,7 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    governance = write_us15_governance_artifacts(
+    governance = write_governance_artifacts(
         model_name=best.model_name,
         selected_features=selected_features,
         full_df=df,
@@ -672,7 +672,7 @@ def main() -> None:
     with mlflow.start_run(run_id=best.run_id):
         mlflow.set_tags(
             {
-                "us15_model_governance": "true",
+                "model_governance": "true",
                 "production_candidate": "true",
             }
         )
