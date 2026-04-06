@@ -43,8 +43,8 @@ DEFAULT_TOP_5_FEATURES = [
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(PROJECT_ROOT))
 PERM_IMPORTANCE_PATH = PROJECT_ROOT / "docs" / "artifacts" / "permutation_importance.csv"
-BEST_MODEL_PATH = PROJECT_ROOT / "docs" / "artifacts" / "us10_best_model.json"
-REGISTRY_EVIDENCE_PATH = PROJECT_ROOT / "docs" / "artifacts" / "us12_model_registry.json"
+BEST_MODEL_PATH = PROJECT_ROOT / "docs" / "artifacts" / "best_model.json"
+REGISTRY_EVIDENCE_PATH = PROJECT_ROOT / "docs" / "artifacts" / "model_registry.json"
 
 
 from source.common.db import get_connection as get_pg_conn
@@ -98,7 +98,7 @@ def resolve_top_monitor_features(conn) -> list[str]:
 def load_baseline_auc_reference() -> tuple[float | None, str]:
     for path, source_name in [
         (REGISTRY_EVIDENCE_PATH, "mlflow_registry_production"),
-        (BEST_MODEL_PATH, "us10_best_model_artifact"),
+        (BEST_MODEL_PATH, "best_model_artifact"),
     ]:
         if not path.exists():
             continue
@@ -115,8 +115,8 @@ def load_baseline_auc_reference() -> tuple[float | None, str]:
 
 
 @dag(
-    dag_id="us14_weekly_model_monitoring",
-    description="US-14 monitoring DAG: PSI + AUC degradation checks with automatic retraining trigger",
+    dag_id="weekly_model_monitoring",
+    description="Weekly monitoring DAG: PSI + AUC degradation checks with automatic retraining trigger",
     default_args={
         "owner": "mlops",
         "depends_on_past": False,
@@ -125,9 +125,9 @@ def load_baseline_auc_reference() -> tuple[float | None, str]:
     start_date=datetime(2026, 1, 1),
     schedule="@weekly",
     catchup=False,
-    tags=["bt4301", "mlops", "monitoring", "us14"],
+    tags=["bt4301", "mlops", "monitoring"],
 )
-def us14_weekly_model_monitoring():
+def weekly_model_monitoring():
     @task(task_id="compute_and_log_monitoring_metrics")
     def compute_and_log_monitoring_metrics() -> dict[str, Any]:
         now_utc = datetime.now(timezone.utc)
@@ -427,7 +427,7 @@ def us14_weekly_model_monitoring():
     alert = log_monitoring_alert(metrics)
     trigger_retraining = TriggerDagRunOperator(
         task_id="trigger_retraining",
-        trigger_dag_id="us21_automated_retraining",
+        trigger_dag_id="automated_retraining",
         wait_for_completion=False,
         reset_dag_run=False,
     )
@@ -437,4 +437,4 @@ def us14_weekly_model_monitoring():
     alert >> trigger_retraining
 
 
-dag = us14_weekly_model_monitoring()
+dag = weekly_model_monitoring()

@@ -39,8 +39,8 @@ run_python_script = partial(_run_script, cwd=PROJECT_ROOT)
 
 
 @dag(
-    dag_id="us6_transform_and_track_lineage",
-    description="US-06: build processed.customer_features and populate processed.data_lineage",
+    dag_id="transform_and_track_lineage",
+    description="Build processed.customer_features and populate processed.data_lineage",
     default_args={
         "owner": "dataops",
         "depends_on_past": False,
@@ -49,9 +49,9 @@ run_python_script = partial(_run_script, cwd=PROJECT_ROOT)
     start_date=datetime(2026, 1, 1),
     schedule=None,  # Manual trigger for sprint/demo use.
     catchup=False,
-    tags=["bt4301", "dataops", "us6"],
-) 
-def us6_transform_and_track_lineage():
+    tags=["bt4301", "dataops"],
+)
+def transform_and_track_lineage():
     @task(task_id="transform_features")
     def transform_features():
         run_python_script(TRANSFORM_SCRIPT)
@@ -63,4 +63,4 @@ def us6_transform_and_track_lineage():
     transform_features() >> track_lineage()
 
 
-dag = us6_transform_and_track_lineage()
+dag = transform_and_track_lineage()

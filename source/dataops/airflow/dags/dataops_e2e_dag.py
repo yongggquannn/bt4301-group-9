@@ -18,7 +18,7 @@ from pathlib import Path
 
 from airflow.decorators import dag, task
 
-# source/dataops/airflow/dags/us8_dataops_e2e_dag.py -> repo root at parents[4]
+# source/dataops/airflow/dags/dataops_e2e_dag.py -> repo root at parents[4]
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -35,8 +35,8 @@ run_python_script = partial(_run_script, cwd=PROJECT_ROOT)
 
 
 @dag(
-    dag_id="us8_dataops_e2e_pipeline",
-    description="US-08 end-to-end DataOps orchestration DAG",
+    dag_id="dataops_e2e_pipeline",
+    description="End-to-end DataOps orchestration DAG",
     default_args={
         "owner": "dataops",
         "depends_on_past": False,
@@ -45,9 +45,9 @@ run_python_script = partial(_run_script, cwd=PROJECT_ROOT)
     start_date=datetime(2026, 1, 1),
     schedule=None,
     catchup=False,
-    tags=["bt4301", "dataops", "us8"],
-) 
-def us8_dataops_e2e_pipeline():
+    tags=["bt4301", "dataops"],
+)
+def dataops_e2e_pipeline():
     @task(task_id="ingest_raw")
     def ingest_raw():
         run_python_script(INGEST_SCRIPT)
@@ -75,4 +75,4 @@ def us8_dataops_e2e_pipeline():
     ingest_raw() >> cleanse() >> transform_features() >> track_lineage() >> trigger_eda() >> generate_eda_images_report()
 
 
-dag = us8_dataops_e2e_pipeline()
+dag = dataops_e2e_pipeline()

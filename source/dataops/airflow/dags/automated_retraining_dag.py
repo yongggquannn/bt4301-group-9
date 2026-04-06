@@ -30,14 +30,14 @@ PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", Path(__file__).resolve().parents[4
 sys.path.insert(0, str(PROJECT_ROOT))
 ARTIFACT_DIR = PROJECT_ROOT / "docs" / "artifacts"
 FEATURE_SELECTION_SCRIPT = PROJECT_ROOT / "source" / "mlops" / "feature_selection.py"
-IMBALANCE_SCRIPT = PROJECT_ROOT / "source" / "mlops" / "train_us18_class_imbalance.py"
+IMBALANCE_SCRIPT = PROJECT_ROOT / "source" / "mlops" / "train_class_imbalance.py"
 TRAIN_SCRIPT = PROJECT_ROOT / "source" / "mlops" / "train_model.py"
 REGISTER_SCRIPT = PROJECT_ROOT / "source" / "mlops" / "register_model.py"
 
-US10_BEST_MODEL_PATH = ARTIFACT_DIR / "us10_best_model.json"
-US20_REGISTRY_PATH = ARTIFACT_DIR / "us20_champion_challenger_registry.json"
-US21_EVALUATION_PATH = ARTIFACT_DIR / "us21_retraining_evaluation.json"
-US21_DECISION_PATH = ARTIFACT_DIR / "us21_retraining_decision.json"
+BEST_MODEL_PATH = ARTIFACT_DIR / "best_model.json"
+REGISTRY_PATH = ARTIFACT_DIR / "champion_challenger_registry.json"
+EVALUATION_PATH = ARTIFACT_DIR / "retraining_evaluation.json"
+DECISION_PATH = ARTIFACT_DIR / "retraining_decision.json"
 
 PSI_THRESHOLD = float(os.getenv("MONITORING_PSI_THRESHOLD", "0.2"))
 AUC_DELTA_THRESHOLD = float(os.getenv("MONITORING_AUC_DELTA_THRESHOLD", "0.05"))
@@ -48,8 +48,8 @@ from source.common.db import get_connection as get_pg_conn
 
 
 @dag(
-    dag_id="us21_automated_retraining",
-    description="US-21 retraining DAG: check drift -> retrain -> evaluate -> register",
+    dag_id="automated_retraining",
+    description="Automated retraining DAG: check drift -> retrain -> evaluate -> register",
     default_args={
         "owner": "mlops",
         "depends_on_past": False,
@@ -58,9 +58,9 @@ from source.common.db import get_connection as get_pg_conn
     start_date=datetime(2026, 1, 1),
     schedule=None,
     catchup=False,
-    tags=["bt4301", "mlops", "retraining", "us21"],
+    tags=["bt4301", "mlops", "retraining"],
 )
-def us21_automated_retraining():
+def automated_retraining():
     @task.branch(task_id="check_drift_results")
     def check_drift_results() -> str:
         with get_pg_conn() as conn:
@@ -112,7 +112,7 @@ def us21_automated_retraining():
             "auc_delta_threshold": AUC_DELTA_THRESHOLD,
             "should_retrain": should_retrain,
         }
-        US21_DECISION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        DECISION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
         return "retrain_if_needed" if should_retrain else "skip_retraining"
 
@@ -130,20 +130,20 @@ def us21_automated_retraining():
         },
         bash_command=(
             "python -B source/mlops/feature_selection.py && "
-            "python -B source/mlops/train_us18_class_imbalance.py && "
+            "python -B source/mlops/train_class_imbalance.py && "
             "python -B source/mlops/train_model.py"
         ),
     )
 
     @task(task_id="evaluate")
     def evaluate() -> dict[str, Any]:
-        if not US10_BEST_MODEL_PATH.exists():
+        if not BEST_MODEL_PATH.exists():
             raise FileNotFoundError(
-                f"{US10_BEST_MODEL_PATH} not found after retraining. "
+                f"{BEST_MODEL_PATH} not found after retraining. "
                 "Expected train_model.py to produce it."
             )
 
-        best_payload = json.loads(US10_BEST_MODEL_PATH.read_text(encoding="utf-8"))
+        best_payload = json.loads(BEST_MODEL_PATH.read_text(encoding="utf-8"))
         retrain_meta = {
             "retrained_at": datetime.utcnow().isoformat() + "Z",
             "steps_run": [
@@ -160,7 +160,7 @@ def us21_automated_retraining():
             "metrics": best_payload["metrics"],
             "imbalance_strategy": best_payload.get("imbalance_strategy"),
         }
-        US21_EVALUATION_PATH.write_text(json.dumps(evaluation, indent=2), encoding="utf-8")
+        EVALUATION_PATH.write_text(json.dumps(evaluation, indent=2), encoding="utf-8")
         return evaluation
 
     @task(task_id="register")
@@ -183,8 +183,8 @@ def us21_automated_retraining():
             )
 
         registry_payload = {}
-        if US20_REGISTRY_PATH.exists():
-            registry_payload = json.loads(US20_REGISTRY_PATH.read_text(encoding="utf-8"))
+        if REGISTRY_PATH.exists():
+            registry_payload = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
 
         decision_payload = {
             "registered_at": datetime.utcnow().isoformat() + "Z",
@@ -192,7 +192,7 @@ def us21_automated_retraining():
             "evaluation": evaluation,
             "registry_decision": registry_payload,
         }
-        US21_DECISION_PATH.write_text(json.dumps(decision_payload, indent=2), encoding="utf-8")
+        DECISION_PATH.write_text(json.dumps(decision_payload, indent=2), encoding="utf-8")
 
     @task(task_id="skip_retraining")
     def skip_retraining() -> None:
@@ -203,7 +203,7 @@ def us21_automated_retraining():
             "psi_threshold": PSI_THRESHOLD,
             "auc_delta_threshold": AUC_DELTA_THRESHOLD,
         }
-        US21_DECISION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        DECISION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         print("Retraining skipped because latest monitoring result did not breach thresholds.")
 
     branch = check_drift_results()
@@ -215,4 +215,4 @@ def us21_automated_retraining():
     retrain >> evaluated >> registered
 
 
-dag = us21_automated_retraining()
+dag = automated_retraining()
