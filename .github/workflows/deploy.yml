@@ -1,7 +1,7 @@
 name: Deploy Web App
 
 on:
-  push:
+  pull_request:
     branches:
       - main
   repository_dispatch:
@@ -75,7 +75,7 @@ jobs:
 
       - name: Smoke test deployment
         run: |
-          curl --fail --retry 10 --retry-delay 3 --retry-connrefused http://127.0.0.1:8000/
+          curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://127.0.0.1:8000/
 
       - name: Cleanup deployed container
         if: always()
