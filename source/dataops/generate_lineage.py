@@ -8,17 +8,15 @@ from pathlib import Path
 # Ensure source/dataops is importable regardless of Airflow worker cwd.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
 import psycopg2
 
 from feature_registry import FEATURE_SPECS
+from source.common.db import get_db_config
 
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
-    "user": os.getenv("POSTGRES_USER", "bt4301"),
-    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-}
+DB_CONFIG = get_db_config()
 
 TRUNCATE_SQL = "TRUNCATE TABLE processed.data_lineage;"
 

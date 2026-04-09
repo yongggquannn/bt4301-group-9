@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
 ARTIFACT_DIR = _PROJECT_ROOT / "docs" / "artifacts"
-BEST_MODEL_PATH = ARTIFACT_DIR / "us10_best_model.json"
+BEST_MODEL_PATH = ARTIFACT_DIR / "best_model.json"
 
 MODEL_NAME = "KKBox-Churn-Classifier"
 DEFAULT_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
@@ -421,10 +421,10 @@ def main() -> None:
         registry_uri=registry_uri,
     )
 
-    us12_path = ARTIFACT_DIR / "us12_model_registry.json"
-    us20_path = ARTIFACT_DIR / "us20_champion_challenger_registry.json"
-    save_evidence(result, us12_path)
-    save_evidence(result, us20_path)
+    registry_path = ARTIFACT_DIR / "model_registry.json"
+    champion_challenger_path = ARTIFACT_DIR / "champion_challenger_registry.json"
+    save_evidence(result, registry_path)
+    save_evidence(result, champion_challenger_path)
 
     if promote:
         maybe_emit_model_promoted_event(result)
@@ -432,8 +432,8 @@ def main() -> None:
     print(
         f"\nModel '{args.model_name}' v{version} decision: {decision}.\n"
         f"Final stage: {final_stage}\n"
-        f"US-12 evidence: {us12_path}\n"
-        f"Champion-challenger evidence: {us20_path}\n"
+        f"Registry evidence: {registry_path}\n"
+        f"Champion-challenger evidence: {champion_challenger_path}\n"
         f"MLflow UI: {args.tracking_uri}/#/models/{args.model_name}\n"
         f"Registry URI for scoring: {registry_uri}"
     )

@@ -1,7 +1,7 @@
 x-airflow-common: &airflow-common
   build:
-    context: ./docker/airflow
-    dockerfile: Dockerfile
+    context: .
+    dockerfile: docker/airflow/Dockerfile
   environment: &airflow-env
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow_db
     AIRFLOW__CORE__DAGS_FOLDER: /opt/project/source/dataops/airflow/dags
@@ -109,12 +109,12 @@ services:
     restart: unless-stopped
 
   # Note: The webapp serves full results only after Airflow DAGs have run
-  # (us8_dataops_e2e_pipeline + daily_churn_scoring). On a fresh start it
+  # (dataops_e2e_pipeline + daily_churn_scoring). On a fresh start it
   # will show an empty dashboard until predictions are generated.
   webapp:
     build:
-      context: ./docker/webapp
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/webapp/Dockerfile
     container_name: bt4301_webapp
     depends_on:
       postgres:

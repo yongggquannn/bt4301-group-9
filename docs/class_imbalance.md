@@ -2,7 +2,7 @@
 
 ## Comparison
 
-Saved to: `docs/artifacts/us18_precision_recall_f1_comparison.csv`
+Saved to: `docs/artifacts/precision_recall_f1_comparison.csv`
 
 | Strategy | Precision (churn) | Recall (churn) | F1 (churn) | ROC AUC |
 |---|---:|---:|---:|---:|

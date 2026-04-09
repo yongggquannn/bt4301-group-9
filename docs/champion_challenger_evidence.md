@@ -11,8 +11,8 @@ python source/mlops/register_model.py --promotion-threshold 0.005
 ## Check evidence artifacts
 Confirm these files exist:
 
-- `docs/artifacts/us12_model_registry.json`
-- `docs/artifacts/us20_champion_challenger_registry.json`
+- `docs/artifacts/model_registry.json`
+- `docs/artifacts/champion_challenger_registry.json`
 
 The champion-challenger JSON should include:
 

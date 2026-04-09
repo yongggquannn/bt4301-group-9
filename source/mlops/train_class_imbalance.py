@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import imblearn  # noqa: F401
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
 import joblib
 import mlflow
 import numpy as np
@@ -27,13 +30,9 @@ from sklearn.preprocessing import StandardScaler
 
 DEFAULT_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
-    "user": os.getenv("POSTGRES_USER", "bt4301"),
-    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-}
+from source.common.db import get_db_config
+
+DB_CONFIG = get_db_config()
 
 
 FEATURE_TABLE_SQL = """
@@ -249,7 +248,7 @@ def main() -> None:
         default=DEFAULT_TRACKING_URI,
         help="MLflow tracking server URI (default: %(default)s)",
     )
-    parser.add_argument("--experiment-name", default="us18-class-imbalance", type=str)
+    parser.add_argument("--experiment-name", default="class-imbalance", type=str)
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--threshold", default=0.5, type=float)
     parser.add_argument("--test-size", default=0.2, type=float)
@@ -340,9 +339,9 @@ def main() -> None:
 
     out_dir = Path("docs") / "artifacts"
     out_dir.mkdir(parents=True, exist_ok=True)
-    comparison_csv = out_dir / "us18_precision_recall_f1_comparison.csv"
-    chosen_json = out_dir / "us18_chosen_strategy.json"
-    comparison_md = out_dir / "us18_precision_recall_f1_comparison.md"
+    comparison_csv = out_dir / "precision_recall_f1_comparison.csv"
+    chosen_json = out_dir / "chosen_strategy.json"
+    comparison_md = out_dir / "precision_recall_f1_comparison.md"
 
     comparison.to_csv(comparison_csv, index=False)
     chosen_json.write_text(json.dumps(justification, indent=2), encoding="utf-8")
@@ -382,23 +381,23 @@ def main() -> None:
 
             # Store models for potential later reuse.
             if strategy == "SMOTE":
-                joblib.dump(payload["model"], out_dir / "us18_smote_model.joblib")
-                mlflow.log_artifact(str(out_dir / "us18_smote_model.joblib"))
+                joblib.dump(payload["model"], out_dir / "smote_model.joblib")
+                mlflow.log_artifact(str(out_dir / "smote_model.joblib"))
             else:
-                joblib.dump(payload["model"], out_dir / "us18_class_weight_model.joblib")
-                mlflow.log_artifact(str(out_dir / "us18_class_weight_model.joblib"))
+                joblib.dump(payload["model"], out_dir / "class_weight_model.joblib")
+                mlflow.log_artifact(str(out_dir / "class_weight_model.joblib"))
 
     _log_for_strategy("SMOTE", smote_metrics, smote_payload)
     _log_for_strategy('class_weight="balanced"', cw_metrics, cw_payload)
 
     # Also write a human-readable summary doc (helps the PR/evidence check).
-    doc_path = Path("docs") / "us18_class_imbalance.md"
+    doc_path = Path("docs") / "class_imbalance.md"
     doc_path.write_text(
-        f"""# US18 - Class Imbalance Handling
+        f"""# Class Imbalance Handling
 
 ## Comparison
 
-Saved to: `docs/artifacts/us18_precision_recall_f1_comparison.csv`
+Saved to: `docs/artifacts/precision_recall_f1_comparison.csv`
 
 | Strategy | Precision (churn) | Recall (churn) | F1 (churn) | ROC AUC |
 |---|---:|---:|---:|---:|
@@ -419,7 +418,7 @@ Justification:
         encoding="utf-8",
     )
 
-    print("US18 complete.")
+    print("Class imbalance handling complete.")
     print(f"Chosen strategy: {chosen}")
     print(comparison)
 

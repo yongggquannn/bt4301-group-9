@@ -17,7 +17,12 @@ Run
 from __future__ import annotations
 
 import os
+import sys
 import time
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_ROOT))
 
 import psycopg2
 import pytest
@@ -33,20 +38,16 @@ WEBAPP_BASE_URL = os.getenv("WEBAPP_BASE_URL", "http://localhost:8000")
 AIRFLOW_USER = os.getenv("AIRFLOW_ADMIN_USER", "admin")
 AIRFLOW_PASSWORD = os.getenv("AIRFLOW_ADMIN_PASSWORD", "admin")
 
-DATAOPS_DAG_ID = "us8_dataops_e2e_pipeline"
+DATAOPS_DAG_ID = "dataops_e2e_pipeline"
 SCORING_DAG_ID = "daily_churn_scoring"
 
 DATAOPS_TIMEOUT = int(os.getenv("E2E_DATAOPS_TIMEOUT", "600"))
 SCORING_TIMEOUT = int(os.getenv("E2E_SCORING_TIMEOUT", "300"))
 POLL_INTERVAL = int(os.getenv("E2E_POLL_INTERVAL", "15"))
 
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", "5432")),
-    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
-    "user": os.getenv("POSTGRES_USER", "bt4301"),
-    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-}
+from source.common.db import get_db_config
+
+DB_CONFIG = get_db_config()
 
 # ---------------------------------------------------------------------------
 # Helpers

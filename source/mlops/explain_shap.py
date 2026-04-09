@@ -10,6 +10,7 @@ import argparse
 import json
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,16 +39,13 @@ logger = logging.getLogger(__name__)
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
 ARTIFACT_DIR = _PROJECT_ROOT / "docs" / "artifacts"
 DEFAULT_TRACKING_URI = "http://localhost:5001"
 
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "dbname": os.getenv("POSTGRES_DB", "kkbox"),
-    "user": os.getenv("POSTGRES_USER", "bt4301"),
-    "password": os.getenv("POSTGRES_PASSWORD", "bt4301pass"),
-}
+from source.common.db import get_db_config
+
+DB_CONFIG = get_db_config()
 
 _REGISTRY_URI = "models:/KKBox-Churn-Classifier/Production"
 _LOCAL_MODEL_DIR = _PROJECT_ROOT / "data" / "scoring"
@@ -315,7 +313,7 @@ def pick_sample_customers(predictions_df: pd.DataFrame) -> list[SampleCustomer]:
 def plot_summary(shap_explanation: shap.Explanation) -> Path:
     """Generate a SHAP summary (beeswarm) plot and save to disk."""
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    path = ARTIFACT_DIR / "us19_shap_summary.png"
+    path = ARTIFACT_DIR / "shap_summary.png"
 
     shap.summary_plot(shap_explanation, show=False)
     plt.tight_layout()
@@ -332,7 +330,7 @@ def plot_summary(shap_explanation: shap.Explanation) -> Path:
 def plot_waterfall(shap_explanation: shap.Explanation, sample: SampleCustomer) -> Path:
     """Generate a SHAP waterfall plot for one customer."""
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    path = ARTIFACT_DIR / f"us19_shap_waterfall_{sample.tier}.png"
+    path = ARTIFACT_DIR / f"shap_waterfall_{sample.tier}.png"
 
     shap.waterfall_plot(shap_explanation[sample.index], show=False)
     plt.tight_layout()
