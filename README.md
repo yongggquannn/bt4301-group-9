@@ -625,7 +625,10 @@ Current DAGs:
 ### Task chains
 
 `dataops_e2e_pipeline`:
-`ingest_raw → cleanse → transform_features → track_lineage → trigger_eda → generate_eda_images_report`
+`ingest_raw → cleanse → transform_features → watermark_data → validate_data → track_lineage → trigger_eda → generate_eda_images_report`
+
+- **watermark_data** — computes a SHA-256 content hash of `processed.customer_features` and records it in `processed.data_watermarks` for data provenance and audit trail.
+- **validate_data** — runs data quality checks (row count match, no nulls in key columns, value range validation, no duplicates). Fails the DAG if any critical check fails.
 
 `daily_churn_scoring`:
 `load_features -> load_production_model -> score -> write_predictions`

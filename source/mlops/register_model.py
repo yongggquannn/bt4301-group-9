@@ -17,7 +17,10 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import mlflow
 from mlflow.exceptions import RestException

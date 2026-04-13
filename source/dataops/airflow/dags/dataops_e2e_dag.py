@@ -2,7 +2,8 @@
 Airflow DAG: end-to-end DataOps orchestration.
 
 Task chain:
-    ingest_raw -> cleanse -> transform_features -> track_lineage -> trigger_eda -> generate_eda_images_report
+    ingest_raw -> cleanse -> transform_features -> watermark_data -> validate_data
+    -> track_lineage -> trigger_eda -> generate_eda_images_report
 
 Notes:
     - `cleanse`, `trigger_eda`, and `generate_eda_images_report` run project scripts.
@@ -27,6 +28,8 @@ from source.common.dag_utils import run_python_script as _run_script
 INGEST_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "load_raw_data.py"
 CLEANSE_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "cleanse_data.py"
 TRANSFORM_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "build_customer_features.py"
+WATERMARK_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "watermark_data.py"
+VALIDATE_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "validate_data.py"
 LINEAGE_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "generate_lineage.py"
 EDA_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "run_eda.py"
 EDA_IMAGES_REPORT_SCRIPT = PROJECT_ROOT / "source" / "dataops" / "generate_eda_images_report.py"
@@ -60,6 +63,14 @@ def dataops_e2e_pipeline():
     def transform_features():
         run_python_script(TRANSFORM_SCRIPT)
 
+    @task(task_id="watermark_data")
+    def watermark_data():
+        run_python_script(WATERMARK_SCRIPT)
+
+    @task(task_id="validate_data")
+    def validate_data():
+        run_python_script(VALIDATE_SCRIPT)
+
     @task(task_id="track_lineage")
     def track_lineage():
         run_python_script(LINEAGE_SCRIPT)
@@ -72,7 +83,7 @@ def dataops_e2e_pipeline():
     def generate_eda_images_report():
         run_python_script(EDA_IMAGES_REPORT_SCRIPT)
 
-    ingest_raw() >> cleanse() >> transform_features() >> track_lineage() >> trigger_eda() >> generate_eda_images_report()
+    ingest_raw() >> cleanse() >> transform_features() >> watermark_data() >> validate_data() >> track_lineage() >> trigger_eda() >> generate_eda_images_report()
 
 
 dag = dataops_e2e_pipeline()
