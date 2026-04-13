@@ -35,6 +35,15 @@ CREATE TABLE IF NOT EXISTS processed.data_lineage (
     created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS processed.data_watermarks (
+    watermark_id  SERIAL      PRIMARY KEY,
+    table_name    TEXT        NOT NULL,
+    row_count     INTEGER    NOT NULL,
+    content_hash  TEXT        NOT NULL,
+    pipeline_run_id TEXT,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS processed.churn_predictions (
     customer_id       TEXT        NOT NULL,
     churn_probability NUMERIC     NOT NULL,
