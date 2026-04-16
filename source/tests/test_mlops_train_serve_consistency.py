@@ -14,6 +14,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from source.mlops import register_model, score_churn
 
+pytestmark = pytest.mark.mlops
+
 
 def test_extract_input_columns_from_signature() -> None:
     features = pd.DataFrame(
