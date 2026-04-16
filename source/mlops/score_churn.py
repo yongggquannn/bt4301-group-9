@@ -1,27 +1,25 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 import mlflow
+import mlflow.sklearn
 import numpy as np
 import pandas as pd
 import psycopg2
+from mlflow.models import get_model_info
 from psycopg2.extras import execute_values
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-
-from source.common.db import get_db_config
+from source.common.db import get_current_snapshot_id, get_db_config
 
 DB_CONFIG = get_db_config()
 
@@ -32,18 +30,29 @@ SCORING_DIR = Path("data") / "scoring"
 SCORING_DIR.mkdir(parents=True, exist_ok=True)
 
 FEATURES_PATH = SCORING_DIR / "features.parquet"
-MODEL_PATH = SCORING_DIR / "production_model.pkl"
+MODEL_METADATA_PATH = SCORING_DIR / "production_model.json"
 SCORES_PATH = SCORING_DIR / "scores.parquet"
 
 HIGH_THRESHOLD = float(os.getenv("CHURN_HIGH_THRESHOLD", "0.7"))
 MEDIUM_THRESHOLD = float(os.getenv("CHURN_MEDIUM_THRESHOLD", "0.4"))
 
+_REGISTRY_URI = "models:/KKBox-Churn-Classifier/Production"
 
-@dataclass
+
+@dataclass(frozen=True)
 class ScoringArtifacts:
     features_path: Path = FEATURES_PATH
-    model_path: Path = MODEL_PATH
+    model_metadata_path: Path = MODEL_METADATA_PATH
     scores_path: Path = SCORES_PATH
+
+
+@dataclass(frozen=True)
+class ProductionModelMetadata:
+    model_uri: str
+    input_columns: list[str]
+    input_signature: dict[str, Any]
+    model_name: str | None = None
+    model_version: str | None = None
 
 
 def _connect():
@@ -93,164 +102,115 @@ def airflow_load_features(artifacts: ScoringArtifacts | None = None, **_) -> Non
     print(f"[load_features] Saved {len(df):,} rows to {artifacts.features_path}")
 
 
-def _train_fallback_model(df: pd.DataFrame) -> Pipeline:
-    if "is_churn" not in df.columns:
-        raise ValueError("Expected 'is_churn' column in feature table.")
+def _resolve_model_uri() -> str:
+    return os.getenv("MLFLOW_MODEL_URI", _REGISTRY_URI)
 
-    y = df["is_churn"].astype(int)
-    X = df.drop(columns=[c for c in ["msno", "is_churn", "feature_created_at"] if c in df.columns])
 
-    # Build a preprocessing pipeline that can handle both numeric and categorical columns.
-    # This fallback exists only when MLFLOW_MODEL_URI is not set.
-    categorical_cols = [c for c in X.columns if X[c].dtype == object]
-    numeric_cols = [c for c in X.columns if c not in categorical_cols]
+def _load_model_info(model_uri: str):
+    try:
+        return get_model_info(model_uri)
+    except Exception as exc:
+        raise RuntimeError(
+            "[load_production_model] Failed to resolve the production model at "
+            f"{model_uri}. Ensure train_model.py and register_model.py completed "
+            "successfully, or set MLFLOW_MODEL_URI to a valid MLflow model URI."
+        ) from exc
 
-    pre = ColumnTransformer(
-        transformers=[
-            (
-                "num",
-                Pipeline(steps=[("imputer", SimpleImputer(strategy="median"))]),
-                numeric_cols,
-            ),
-            (
-                "cat",
-                Pipeline(
-                    steps=[
-                        ("imputer", SimpleImputer(strategy="most_frequent")),
-                        (
-                            "onehot",
-                            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                        ),
-                    ]
-                ),
-                categorical_cols,
-            ),
-        ],
-        remainder="drop",
-        verbose_feature_names_out=False,
+
+def _load_serving_model(model_uri: str):
+    try:
+        model = mlflow.sklearn.load_model(model_uri)
+    except Exception as exc:
+        raise RuntimeError(
+            "[load_production_model] Failed to load the production model from "
+            f"{model_uri}. Ensure the MLflow tracking server is reachable and the "
+            "registered model artifact exists."
+        ) from exc
+
+    if not hasattr(model, "predict_proba"):
+        raise TypeError(
+            "Loaded model does not expose predict_proba(). "
+            "Expected a fitted sklearn Pipeline logged by train_model.py."
+        )
+    return model
+
+
+def _extract_input_columns(signature) -> list[str]:
+    if signature is None or signature.inputs is None:
+        raise RuntimeError(
+            "Production model is missing an MLflow input signature. "
+            "Retrain and re-register the model so scoring can enforce the serving schema."
+        )
+
+    input_columns = [str(name) for name in signature.inputs.input_names()]
+    if not input_columns:
+        raise RuntimeError(
+            "Production model signature does not define named input columns. "
+            "Retrain and re-register the model with a DataFrame input signature."
+        )
+    return input_columns
+
+
+def _build_model_metadata(model_uri: str, model_info) -> ProductionModelMetadata:
+    input_columns = _extract_input_columns(model_info.signature)
+    return ProductionModelMetadata(
+        model_uri=model_uri,
+        input_columns=input_columns,
+        input_signature=model_info.signature.to_dict(),
+        model_name=getattr(model_info, "name", None),
+        model_version=(
+            str(model_info.registered_model_version)
+            if getattr(model_info, "registered_model_version", None) is not None
+            else None
+        ),
     )
 
-    # Keep the fallback model small so Airflow scoring DAG runs quickly
-    # when no MLflow production model is provided.
-    clf = RandomForestClassifier(
-        n_estimators=80,
-        max_depth=10,
-        min_samples_leaf=2,
-        max_features="sqrt",
-        random_state=42,
-        n_jobs=-1,
-        class_weight="balanced_subsample",
-    )
-    pipe = Pipeline([("pre", pre), ("clf", clf)])
-    pipe.fit(X, y)
-    return pipe
+
+def _write_model_metadata(metadata: ProductionModelMetadata, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(metadata.__dict__, indent=2), encoding="utf-8")
 
 
-_REGISTRY_URI = "models:/KKBox-Churn-Classifier/Production"
-
-
-def _load_model_from_mlflow(df: pd.DataFrame) -> object:
-    model_uri = os.getenv("MLFLOW_MODEL_URI")
-
-    if not model_uri:
-        # Try the Model Registry (US-12) before falling back to a scratch model.
-        try:
-            print(
-                f"[load_production_model] MLFLOW_MODEL_URI not set; "
-                f"trying registry at {_REGISTRY_URI}"
-            )
-            return mlflow.pyfunc.load_model(_REGISTRY_URI)
-        except mlflow.exceptions.MlflowException as exc:
-            print(
-                f"[load_production_model] Registry model not available ({exc}); "
-                "training a simple fallback RandomForest model instead."
-            )
-            return _train_fallback_model(df)
-
-    print(f"[load_production_model] Loading production model from MLflow: {model_uri}")
-    return mlflow.pyfunc.load_model(model_uri)
+def _load_model_metadata(path: Path) -> ProductionModelMetadata:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return ProductionModelMetadata(**payload)
 
 
 def airflow_load_production_model(artifacts: ScoringArtifacts | None = None, **_) -> None:
     artifacts = artifacts or ScoringArtifacts()
 
-    if not artifacts.features_path.exists():
-        raise FileNotFoundError(
-            f"Features file not found at {artifacts.features_path}. "
-            "Run load_features task first."
-        )
+    model_uri = _resolve_model_uri()
+    model_info = _load_model_info(model_uri)
+    _load_serving_model(model_uri)
+    metadata = _build_model_metadata(model_uri, model_info)
+    _write_model_metadata(metadata, artifacts.model_metadata_path)
 
-    df = pd.read_parquet(artifacts.features_path)
-    model = _load_model_from_mlflow(df)
-
-    import joblib
-
-    joblib.dump(model, artifacts.model_path)
-    print(f"[load_production_model] Saved model to {artifacts.model_path}")
-
-
-_CATEGORICAL_FEATURES = frozenset(
-    {"gender", "city", "registered_via", "latest_payment_method_id", "latest_is_auto_renew"}
-)
-
-_FEATURE_SET_PATH = Path(__file__).resolve().parent.parent.parent / "docs" / "artifacts" / "final_feature_set.json"
-
-
-def _load_selected_features() -> list[str]:
-    """Read the feature list produced by feature selection (same as train_model)."""
-    import json
-    with open(_FEATURE_SET_PATH, encoding="utf-8") as fh:
-        return json.load(fh)["selected_features"]
-
-
-def _preprocess_for_production_model(df: pd.DataFrame) -> np.ndarray:
-    """Apply the same preprocessing used during training (build_preprocessor).
-
-    The production model logged in MLflow is a raw estimator (e.g. XGBClassifier)
-    trained on already-preprocessed numeric data, so we must replicate the
-    ColumnTransformer pipeline from train_model.py before calling predict.
-    """
-    selected = _load_selected_features()
-    X = df[[c for c in selected if c in df.columns]]
-
-    categorical_cols = [c for c in X.columns if c in _CATEGORICAL_FEATURES]
-    numeric_cols = [c for c in X.columns if c not in _CATEGORICAL_FEATURES]
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            (
-                "num",
-                Pipeline(steps=[
-                    ("imputer", SimpleImputer(strategy="median")),
-                    ("scaler", StandardScaler()),
-                ]),
-                numeric_cols,
-            ),
-            (
-                "cat",
-                Pipeline(steps=[
-                    ("imputer", SimpleImputer(strategy="most_frequent")),
-                    ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-                ]),
-                categorical_cols,
-            ),
-        ],
-        remainder="drop",
-        verbose_feature_names_out=False,
+    version_suffix = f" version={metadata.model_version}" if metadata.model_version else ""
+    print(
+        "[load_production_model] Resolved model "
+        f"{metadata.model_uri}{version_suffix} with inputs {metadata.input_columns} "
+        f"-> {artifacts.model_metadata_path}"
     )
-    return preprocessor.fit_transform(X)
 
 
-def _predict_proba(model, df: pd.DataFrame) -> np.ndarray:
-    # sklearn Pipeline (includes its own preprocessing)
-    if hasattr(model, "predict_proba"):
-        X = df.drop(columns=[c for c in ["msno", "is_churn", "feature_created_at"] if c in df.columns])
-        return model.predict_proba(X)[:, 1]
+def _prepare_model_inputs(df: pd.DataFrame, input_columns: list[str]) -> pd.DataFrame:
+    missing = [column for column in input_columns if column not in df.columns]
+    if missing:
+        raise RuntimeError(
+            "Feature table is missing required production-model columns: "
+            f"{missing}. Rebuild the feature table before scoring."
+        )
+    return df.loc[:, input_columns].copy()
 
-    # mlflow.pyfunc generic model — unwrap to get predict_proba
-    X = _preprocess_for_production_model(df)
-    inner = model._model_impl.sklearn_model
-    return inner.predict_proba(X)[:, 1]
+
+def _predict_positive_class_proba(model, features: pd.DataFrame) -> np.ndarray:
+    probs = np.asarray(model.predict_proba(features))
+    if probs.ndim != 2 or probs.shape[1] < 2:
+        raise RuntimeError(
+            "predict_proba returned an unexpected shape. "
+            "Expected binary classification probabilities with two columns."
+        )
+    return probs[:, 1]
 
 
 def _assign_risk_tier(prob: float) -> str:
@@ -266,15 +226,16 @@ def airflow_score(artifacts: ScoringArtifacts | None = None, **_) -> None:
 
     if not artifacts.features_path.exists():
         raise FileNotFoundError("Features parquet not found. Run load_features first.")
-    if not artifacts.model_path.exists():
-        raise FileNotFoundError("Model pickle not found. Run load_production_model first.")
+    if not artifacts.model_metadata_path.exists():
+        raise FileNotFoundError(
+            "Production model metadata not found. Run load_production_model first."
+        )
 
     df = pd.read_parquet(artifacts.features_path)
-
-    import joblib
-
-    model = joblib.load(artifacts.model_path)
-    probs = _predict_proba(model, df)
+    metadata = _load_model_metadata(artifacts.model_metadata_path)
+    model = _load_serving_model(metadata.model_uri)
+    model_inputs = _prepare_model_inputs(df, metadata.input_columns)
+    probs = _predict_positive_class_proba(model, model_inputs)
 
     scores = pd.DataFrame(
         {
@@ -284,7 +245,10 @@ def airflow_score(artifacts: ScoringArtifacts | None = None, **_) -> None:
     )
     scores["risk_tier"] = scores["churn_probability"].apply(_assign_risk_tier)
     scores.to_parquet(artifacts.scores_path, index=False)
-    print(f"[score] Scored {len(scores):,} customers -> {artifacts.scores_path}")
+    print(
+        f"[score] Scored {len(scores):,} customers with {metadata.model_uri} "
+        f"-> {artifacts.scores_path}"
+    )
 
 
 def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) -> None:
@@ -297,19 +261,14 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
     scored_at = datetime.now(timezone.utc)
     scores["scored_at"] = scored_at
 
-    rows = list(
-        scores[["customer_id", "churn_probability", "risk_tier", "scored_at"]].itertuples(
-            index=False, name=None
-        )
-    )
-
     ddl = """
     CREATE TABLE IF NOT EXISTS processed.churn_predictions (
-        customer_id       TEXT        NOT NULL,
-        churn_probability NUMERIC     NOT NULL,
-        risk_tier         VARCHAR(16) NOT NULL,
-        scored_at         TIMESTAMPTZ NOT NULL,
-        shap_values       JSONB,
+        customer_id         TEXT        NOT NULL,
+        churn_probability   NUMERIC     NOT NULL,
+        risk_tier           VARCHAR(16) NOT NULL,
+        scored_at           TIMESTAMPTZ NOT NULL,
+        shap_values         JSONB,
+        feature_snapshot_id UUID,
         PRIMARY KEY (customer_id, scored_at)
     );
     """
@@ -317,11 +276,27 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(ddl)
+            cur.execute(
+                "ALTER TABLE processed.churn_predictions "
+                "ADD COLUMN IF NOT EXISTS feature_snapshot_id UUID"
+            )
+
+        snapshot_id = get_current_snapshot_id(conn)
+
+        rows = list(
+            scores[["customer_id", "churn_probability", "risk_tier", "scored_at"]].itertuples(
+                index=False, name=None
+            )
+        )
+        rows = [(*row, snapshot_id) for row in rows]
+
+        with conn.cursor() as cur:
             execute_values(
                 cur,
                 """
                 INSERT INTO processed.churn_predictions (
-                    customer_id, churn_probability, risk_tier, scored_at
+                    customer_id, churn_probability, risk_tier, scored_at,
+                    feature_snapshot_id
                 )
                 VALUES %s
                 """,
@@ -329,7 +304,10 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
             )
         conn.commit()
 
-    print(f"[write_predictions] Wrote {len(rows):,} rows into processed.churn_predictions")
+    print(
+        f"[write_predictions] Wrote {len(rows):,} rows into processed.churn_predictions"
+        f" (feature_snapshot={snapshot_id})"
+    )
 
 
 def main(step: str | None = None) -> None:
@@ -365,4 +343,3 @@ def main(step: str | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

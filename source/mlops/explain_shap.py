@@ -29,9 +29,7 @@ from psycopg2.extras import execute_values
 from xgboost import XGBClassifier
 
 from train_model import (
-    CATEGORICAL_FEATURES,
     _split_columns,
-    build_preprocessor,
     load_selected_features,
 )
 
@@ -48,7 +46,6 @@ from source.common.db import get_db_config
 DB_CONFIG = get_db_config()
 
 _REGISTRY_URI = "models:/KKBox-Churn-Classifier/Production"
-_LOCAL_MODEL_DIR = _PROJECT_ROOT / "data" / "scoring"
 EXPERIMENT_NAME = "KKBox Churn"
 
 # Allowlist of valid feature column names (prevents SQL injection).
@@ -97,43 +94,32 @@ def _connect() -> psycopg2.extensions.connection:
 # 1. Load model
 # ---------------------------------------------------------------------------
 
-def load_production_model() -> tuple[Any, str, Any | None]:
-    """Load the raw classifier from MLflow or local fallback.
-
-    Returns ``(model, model_type, embedded_preprocessor)`` where
-    *model_type* is ``"xgboost"`` or ``"other"`` and
-    *embedded_preprocessor* is ``None`` when the model was loaded
-    standalone (MLflow registry) or the Pipeline's own preprocessor
-    when loaded from a local fallback Pipeline.
-    """
-    embedded_preprocessor = None
+def load_production_model() -> tuple[Any, str, Any]:
+    """Load the production serving pipeline and extract its fitted preprocessor."""
+    model_uri = os.getenv("MLFLOW_MODEL_URI", _REGISTRY_URI)
     try:
-        logger.info("Loading model from MLflow registry: %s", _REGISTRY_URI)
-        model = mlflow.sklearn.load_model(_REGISTRY_URI)
-    except mlflow.exceptions.MlflowException:
-        logger.warning(
-            "MLflow registry unavailable; trying local fallback at %s",
-            _LOCAL_MODEL_DIR,
+        logger.info("Loading model from MLflow: %s", model_uri)
+        pipeline = mlflow.sklearn.load_model(model_uri)
+    except mlflow.exceptions.MlflowException as exc:
+        raise RuntimeError(
+            f"Failed to load the production model from {model_uri}. "
+            "Run train_model.py and register_model.py first, or set MLFLOW_MODEL_URI."
+        ) from exc
+
+    if not hasattr(pipeline, "named_steps"):
+        raise TypeError(
+            "Production model is not a sklearn Pipeline. "
+            "Re-run train_model.py so MLflow stores the full preprocessing-plus-model pipeline."
         )
-        import joblib
 
-        model_path = _LOCAL_MODEL_DIR / "production_model.pkl"
-        if not model_path.exists():
-            raise FileNotFoundError(
-                f"No model found at {model_path}. "
-                "Run the scoring pipeline first (python source/mlops/score_churn.py all)."
-            )
-        model = joblib.load(model_path)
+    embedded_preprocessor = pipeline.named_steps.get("pre")
+    if embedded_preprocessor is None:
+        raise RuntimeError(
+            "Production model pipeline does not contain a fitted 'pre' step. "
+            "Re-run train_model.py so SHAP can reuse the serving preprocessor."
+        )
 
-        # If loaded via joblib from score_churn the object may be an
-        # sklearn Pipeline or an mlflow.pyfunc wrapper.  Extract the
-        # classifier and keep the embedded preprocessor for SHAP.
-        if hasattr(model, "named_steps"):
-            embedded_preprocessor = model.named_steps.get("pre", None)
-            model = model.named_steps.get("clf", model)
-        if hasattr(model, "_model_impl"):
-            model = model._model_impl
-
+    model = pipeline.named_steps.get("clf", pipeline)
     model_type = "xgboost" if isinstance(model, XGBClassifier) else "other"
     logger.info("Loaded model type: %s (%s)", type(model).__name__, model_type)
     return model, model_type, embedded_preprocessor
@@ -458,7 +444,7 @@ def main() -> None:
     selected_features = load_selected_features()
     logger.info("Selected features (%d): %s", len(selected_features), selected_features)
 
-    cat_cols, num_cols = _split_columns(selected_features)
+    cat_cols, _ = _split_columns(selected_features)
 
     # --- Load model ---
     model, model_type, embedded_preprocessor = load_production_model()
@@ -469,37 +455,10 @@ def main() -> None:
     # --- Preprocess features ---
     # raw_feature_data holds the untransformed feature values matching
     # selected_features — used as ``data`` in the aggregated shap.Explanation.
-    if embedded_preprocessor is not None:
-        # Local fallback Pipeline: the preprocessor is already fitted and
-        # expects the full feature set (all columns from customer_features).
-        # We need to load all features, not just the selected 12.
-        logger.info("Using embedded preprocessor from fallback Pipeline.")
-        with _connect() as conn:
-            all_features_df = pd.read_sql(
-                "SELECT * FROM processed.customer_features ORDER BY msno", conn,
-            )
-        # Align with predictions by customer_id.
-        merged = predictions_df.merge(
-            all_features_df, left_on="customer_id", right_on="msno", how="inner",
-        )
-        drop_cols = ["msno", "is_churn", "feature_created_at",
-                     "customer_id", "churn_probability", "risk_tier", "scored_at"]
-        X_for_transform = merged.drop(
-            columns=[c for c in drop_cols if c in merged.columns],
-        )
-        X_transformed = embedded_preprocessor.transform(X_for_transform)
-        transformed_names = list(embedded_preprocessor.get_feature_names_out())
-        # For the fallback model, features are not the selected 12 so we
-        # use the transformer's output names directly (no one-hot aggregation).
-        cat_cols = [c for c in X_for_transform.columns if X_for_transform[c].dtype == object]
-        selected_features = list(X_for_transform.columns)
-        raw_feature_data = X_for_transform.values
-    else:
-        # Production model from MLflow: rebuild preprocessor on selected features.
-        preprocessor = build_preprocessor(cat_cols, num_cols)
-        X_transformed = preprocessor.fit_transform(features_df)
-        transformed_names = list(preprocessor.get_feature_names_out())
-        raw_feature_data = features_df.values
+    logger.info("Using embedded preprocessor from the production serving pipeline.")
+    X_transformed = embedded_preprocessor.transform(features_df)
+    transformed_names = list(embedded_preprocessor.get_feature_names_out())
+    raw_feature_data = features_df.values
 
     # --- SHAP ---
     explainer = build_explainer(model, model_type, X_transformed)
