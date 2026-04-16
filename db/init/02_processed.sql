@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS processed.data_lineage (
     feature_name TEXT NOT NULL,
     source_table TEXT NOT NULL,
     transformation_rule TEXT NOT NULL,
+    snapshot_id UUID,
     created_at TIMESTAMPTZ NOT NULL
 );
 
@@ -44,11 +45,26 @@ CREATE TABLE IF NOT EXISTS processed.data_watermarks (
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS processed.feature_snapshots (
+    snapshot_id         UUID        PRIMARY KEY,
+    pipeline_run_id     TEXT,
+    build_started_at    TIMESTAMPTZ NOT NULL,
+    build_completed_at  TIMESTAMPTZ,
+    source_watermark_id INTEGER     REFERENCES processed.data_watermarks(watermark_id),
+    row_count           INTEGER,
+    content_hash        TEXT,
+    feature_count       INTEGER     NOT NULL,
+    feature_names       JSONB       NOT NULL,
+    status              VARCHAR(16) NOT NULL DEFAULT 'building',
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS processed.churn_predictions (
-    customer_id       TEXT        NOT NULL,
-    churn_probability NUMERIC     NOT NULL,
-    risk_tier         VARCHAR(16) NOT NULL,
-    scored_at         TIMESTAMPTZ NOT NULL,
-    shap_values       JSONB,
+    customer_id         TEXT        NOT NULL,
+    churn_probability   NUMERIC     NOT NULL,
+    risk_tier           VARCHAR(16) NOT NULL,
+    scored_at           TIMESTAMPTZ NOT NULL,
+    shap_values         JSONB,
+    feature_snapshot_id UUID,
     PRIMARY KEY (customer_id, scored_at)
 );

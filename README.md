@@ -239,6 +239,14 @@ What each script does:
 | `run_eda.py`                    | Runs exploratory analysis; writes outputs to `data/processed/eda/`      |
 | `generate_eda_images_report.py` | Generates 13 EDA charts + HTML report in `data/processed/eda/`          |
 
+**Feature versioning (Workstream D):** `build_customer_features.py` now creates a UUID snapshot in `processed.feature_snapshots` for each feature build, linking to the source watermark and recording content hash + row count. Downstream scripts (`generate_lineage.py`, `train_model.py`, `score_churn.py`) attach this snapshot ID to their outputs so every lineage row, MLflow training run, and churn prediction can be traced back to the exact feature build that produced them.
+
+**If upgrading an existing database**, run the migration first:
+
+```bash
+docker exec -i bt4301_postgres psql -U bt4301 -d kkbox < db/migrations/add_feature_snapshots.sql
+```
+
 ---
 
 ### Step 5 — Feature selection and importance (MLflow)
@@ -267,7 +275,7 @@ Evidence artifacts are written to `docs/artifacts/` and logged to MLflow (includ
 
 ### Step 7 — Train and compare models (US-10)
 
-Trains Logistic Regression, XGBoost, and MLP on `processed.customer_features` using the feature list from Step 5 and (if present) the imbalance strategy from Step 6. Logs metrics and plots to MLflow; writes comparison artifacts to `docs/artifacts/` (e.g. `model_comparison.csv`, `best_model.json`).
+Trains Logistic Regression, XGBoost, and MLP on `processed.customer_features` using the feature list from Step 5 and (if present) the imbalance strategy from Step 6. Each MLflow run now logs the full fitted serving pipeline (`pre` + `clf`) together with an MLflow input signature so the exact same artifact can be used later for production scoring. Comparison artifacts are written to `docs/artifacts/` (e.g. `model_comparison.csv`, `best_model.json`).
 
 **Prerequisites:** Steps 4–6 recommended (Step 6 can be skipped—training falls back to a default imbalance strategy if `chosen_strategy.json` is missing).
 
@@ -280,6 +288,11 @@ Quick smoke test (one model, subsampled rows):
 ```bash
 python source/mlops/train_model.py --models logistic_regression --sample-rows 5000
 ```
+
+Verification:
+
+- confirm the winning run in MLflow contains a `model` artifact with a signature
+- inspect `docs/artifacts/best_model.json` for `model_artifact_type: "serving_pipeline"` and `input_features`
 
 ---
 
@@ -337,7 +350,7 @@ Outputs:
 
 ### Step 10 — Register best model in MLflow Model Registry (US-12 / US-20)
 
-Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and applies a champion-challenger promotion rule.
+Registers the best model (from US-10 training) into the MLflow Model Registry as `KKBox-Churn-Classifier` and applies a champion-challenger promotion rule. Registration now fails fast if the winning run does not contain a valid MLflow input signature, which protects the downstream scoring pipeline from train/serve drift.
 
 Promotion rule:
 
@@ -374,19 +387,32 @@ Visit the MLflow UI at [http://localhost:5001/#/models/KKBox-Churn-Classifier](h
 
 ### Step 11 — Generate daily predictions from the production model (US-13)
 
-Runs the scoring pipeline against the production model. The scoring script tries the MLflow registry model `models:/KKBox-Churn-Classifier/Production` when `MLFLOW_MODEL_URI` is not set, and only falls back to a small local model if the production model is unavailable.
+Runs the scoring pipeline against the production model. The scorer resolves `MLFLOW_MODEL_URI` if provided, otherwise it uses the MLflow registry model `models:/KKBox-Churn-Classifier/Production`. It loads the registered sklearn pipeline directly, enforces the MLflow signature column order, and fails fast if the production model is unavailable or the feature table is missing required columns. There is no local fallback model during inference.
 
 ```bash
 python source/mlops/score_churn.py all
 ```
 
-This writes predictions into `processed.churn_predictions`, which are then used by the monitoring DAG.
+This writes predictions into `processed.churn_predictions`, which are then used by the monitoring DAG. The intermediate model handoff is saved to `data/scoring/production_model.json`.
+
+Verification:
+
+```bash
+python source/mlops/train_model.py --models logistic_regression --sample-rows 5000
+python source/mlops/register_model.py
+python source/mlops/score_churn.py all
+```
+
+Then confirm:
+
+- `data/scoring/production_model.json` exists and lists the resolved model URI plus ordered input columns
+- `processed.churn_predictions` contains fresh rows after scoring
 
 ---
 
 ### Step 12 — Churn risk web app (US-16 / US-23)
 
-A FastAPI web app with three pages: a customer lookup, a customer detail page with SHAP explanations, and a top-50 churn risk dashboard.
+A FastAPI web app with three pages: a customer lookup, a customer retention detail page with action recommendations and business-friendly explanations, and a top-50 retention queue dashboard.
 
 **Prerequisites:** Steps 1–11 (PostgreSQL running, `processed.churn_predictions` populated). Step 13 (SHAP) is optional — the app falls back to global feature importance if per-customer SHAP values are not yet stored.
 
@@ -406,17 +432,18 @@ python -m uvicorn source.webapp.app:app --host 0.0.0.0 --port 8000 --reload
 
 | URL                                   | Description                                                    |
 | ------------------------------------- | -------------------------------------------------------------- |
-| `http://localhost:8000/`              | Search bar — enter a customer ID and submit                    |
-| `http://localhost:8000/customer/<id>` | Churn probability (%), risk tier badge, top 3 SHAP features    |
-| `http://localhost:8000/dashboard`     | Table of top 50 highest-risk customers, sortable by any column |
+| `http://localhost:8000/`              | Retention desk homepage — search a customer and open the dashboard |
+| `http://localhost:8000/customer/<id>` | Churn probability (%), risk tier badge, recommended action, customer segment, and top 3 SHAP features |
+| `http://localhost:8000/dashboard`     | Manager view — portfolio summary cards, churn distribution chart, segment breakdowns (tenure, payment, cancellation, usage), model monitoring status, and top 50 retention queue |
 
 **Verify:**
 
-1. Open [http://localhost:8000](http://localhost:8000) — search bar is visible with a "View Dashboard →" link.
-2. Enter a valid customer ID and click "Look up" → redirects to `/customer/<id>` showing probability, risk badge, and top 3 features.
-3. Visit [http://localhost:8000/dashboard](http://localhost:8000/dashboard) → table of top 50 customers; click column headers to sort.
-4. Click a customer ID link in the dashboard → navigates to their detail page.
-5. Enter a non-existent customer ID → friendly "Customer not found." error message.
+1. Open [http://localhost:8000](http://localhost:8000) — the retention desk homepage renders with the customer search bar and dashboard link.
+2. Enter a valid customer ID and click "Open Customer" → redirects to `/customer/<id>` showing probability, risk badge, intervention priority, recommended action, and explanation bullets.
+3. Visit [http://localhost:8000/dashboard](http://localhost:8000/dashboard) → portfolio cards (high/medium/low/total) render at the top, followed by model freshness and monitoring status badges, the churn probability distribution chart, segment breakdowns (Customer Tenure, Payment Behavior, Cancellation History, Usage Intensity), and the top 50 retention queue.
+4. Use the risk-tier and customer-segment filters, then click column headers to confirm the table still sorts correctly.
+5. Click a customer ID link in the dashboard → navigates to the matching detail page with recommendation content.
+6. Enter a non-existent customer ID → friendly "Customer not found." error message.
 
 **JSON API (backward compatible):**
 
@@ -425,6 +452,13 @@ curl http://localhost:8000/customer/<customer_id>/churn-risk
 ```
 
 Returns `churn_probability` (float), `risk_tier` (High/Medium/Low), `top_3_features`, and `top_3_shap` (per-customer SHAP values if available).
+
+The API also returns:
+
+- `recommended_action`
+- `intervention_priority`
+- `customer_segment`
+- `business_explanations`
 
 ---
 
@@ -606,6 +640,25 @@ Expected results:
 - `missing_in_lineage = 0`
 - `extra_in_lineage = 0`
 
+**Feature versioning linkage (Workstream D):** verify that snapshots, lineage, and predictions are linked:
+
+```sql
+-- Latest feature snapshot
+SELECT snapshot_id, status, row_count, content_hash, source_watermark_id
+FROM processed.feature_snapshots
+ORDER BY build_completed_at DESC LIMIT 1;
+
+-- Lineage rows linked to latest snapshot
+SELECT COUNT(*) AS linked_lineage_rows
+FROM processed.data_lineage
+WHERE snapshot_id IS NOT NULL;
+
+-- Predictions linked to a feature snapshot
+SELECT COUNT(*) AS linked_prediction_rows
+FROM processed.churn_predictions
+WHERE feature_snapshot_id IS NOT NULL;
+```
+
 ---
 
 ## Airflow DAGs
@@ -747,6 +800,12 @@ Run all non-integration tests (no Docker stack required):
 
 ```bash
 pytest -q tests source/tests -m "not integration"
+```
+
+Focused Workstream C verification:
+
+```bash
+pytest -q source/tests/test_mlops_train_serve_consistency.py -m "not integration"
 ```
 
 ### End-to-End Integration Test (Local)

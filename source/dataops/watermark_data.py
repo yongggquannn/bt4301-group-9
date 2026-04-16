@@ -24,18 +24,18 @@ TABLE_NAME = "processed.customer_features"
 def _compute_table_hash(cur) -> tuple[int, str]:
     """Return (row_count, sha256_hex) for the customer_features table.
 
-    Hashes are computed over msno and is_churn columns ordered by msno
+    Hashes are computed over all columns ordered by msno
     so the result is deterministic regardless of physical row order.
     """
     cur.execute(
-        "SELECT msno, is_churn FROM processed.customer_features ORDER BY msno"
+        "SELECT * FROM processed.customer_features ORDER BY msno"
     )
     rows = cur.fetchall()
     row_count = len(rows)
 
     hasher = hashlib.sha256()
     for row in rows:
-        hasher.update(f"{row[0]}|{row[1]}".encode())
+        hasher.update("|".join(str(v) for v in row).encode())
 
     return row_count, hasher.hexdigest()
 
