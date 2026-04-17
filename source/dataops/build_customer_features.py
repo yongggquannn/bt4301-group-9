@@ -13,9 +13,13 @@ Environment variables (matches docker-compose.yml / .env):
     POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
 """
 
+import hashlib
+import json
 import os
 import sys
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +28,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 import psycopg2
 
 from source.common.db import get_db_config
+from source.dataops.feature_registry import FEATURE_SPECS, feature_names
 
 DB_CONFIG = get_db_config()
 
@@ -53,6 +58,22 @@ CREATE TABLE IF NOT EXISTS processed.customer_features (
     avg_num_unq                   NUMERIC(10,4),
     feature_created_at            TIMESTAMPTZ   DEFAULT NOW(),
     PRIMARY KEY (msno)
+);
+"""
+
+SNAPSHOT_DDL = """
+CREATE TABLE IF NOT EXISTS processed.feature_snapshots (
+    snapshot_id         UUID        PRIMARY KEY,
+    pipeline_run_id     TEXT,
+    build_started_at    TIMESTAMPTZ NOT NULL,
+    build_completed_at  TIMESTAMPTZ,
+    source_watermark_id INTEGER,
+    row_count           INTEGER,
+    content_hash        TEXT,
+    feature_count       INTEGER     NOT NULL,
+    feature_names       JSONB       NOT NULL,
+    status              VARCHAR(16) NOT NULL DEFAULT 'building',
+    created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 """
 
@@ -204,22 +225,59 @@ def validate(cur):
     return checks_passed
 
 
+def _compute_content_hash(cur) -> tuple[int, str]:
+    """Return (row_count, sha256_hex) over all columns of customer_features."""
+    cur.execute("SELECT * FROM processed.customer_features ORDER BY msno")
+    rows = cur.fetchall()
+    hasher = hashlib.sha256()
+    for row in rows:
+        hasher.update("|".join(str(v) for v in row).encode())
+    return len(rows), hasher.hexdigest()
+
+
 def main():
     print("=" * 60)
     print("US-4: Building processed.customer_features")
     print("=" * 60)
+
+    snapshot_id = str(uuid.uuid4())
+    pipeline_run_id = os.getenv("AIRFLOW_CTX_DAG_RUN_ID")
+    build_started_at = datetime.now(timezone.utc)
+    feat_names = feature_names()
 
     conn = psycopg2.connect(**DB_CONFIG)
     conn.autocommit = False
     cur = conn.cursor()
 
     try:
-        print("\n[1/3] Ensuring table DDL is applied...")
+        print("\n[1/5] Ensuring table DDL is applied...")
         cur.execute(DDL)
+        cur.execute(SNAPSHOT_DDL)
         conn.commit()
         print("  Table structure verified.")
 
-        print("\n[2/3] Running transformation (TRUNCATE + INSERT)...")
+        print("\n[2/5] Recording feature snapshot metadata...")
+        cur.execute(
+            "SELECT watermark_id FROM processed.data_watermarks "
+            "ORDER BY created_at DESC LIMIT 1"
+        )
+        wm_row = cur.fetchone()
+        source_watermark_id = wm_row[0] if wm_row else None
+
+        cur.execute(
+            """
+            INSERT INTO processed.feature_snapshots
+                (snapshot_id, pipeline_run_id, build_started_at,
+                 source_watermark_id, feature_count, feature_names, status)
+            VALUES (%s::uuid, %s, %s, %s, %s, %s::jsonb, 'building')
+            """,
+            (snapshot_id, pipeline_run_id, build_started_at,
+             source_watermark_id, len(feat_names), json.dumps(feat_names)),
+        )
+        conn.commit()
+        print(f"  Snapshot ID: {snapshot_id}")
+
+        print("\n[3/5] Running transformation (TRUNCATE + INSERT)...")
         t0 = time.time()
         cur.execute(TRUNCATE_SQL)
         cur.execute(INSERT_SQL)
@@ -227,15 +285,40 @@ def main():
         elapsed = time.time() - t0
         print(f"  Done in {elapsed:.1f}s")
 
-        print("\n[3/3] Validation checks...")
+        print("\n[4/5] Validation checks...")
         ok = validate(cur)
 
         if not ok:
             raise AssertionError("One or more critical validation checks FAILED. See above.")
         print("\n  All critical checks PASSED.")
 
+        print("\n[5/5] Finalizing snapshot metadata...")
+        row_count, content_hash = _compute_content_hash(cur)
+        cur.execute(
+            """
+            UPDATE processed.feature_snapshots
+            SET build_completed_at = NOW(),
+                row_count = %s,
+                content_hash = %s,
+                status = 'completed'
+            WHERE snapshot_id = %s::uuid
+            """,
+            (row_count, content_hash, snapshot_id),
+        )
+        conn.commit()
+        print(f"  Snapshot completed: {row_count:,} rows, hash={content_hash[:12]}...")
+
     except Exception as e:
         conn.rollback()
+        try:
+            cur.execute(
+                "UPDATE processed.feature_snapshots SET status = 'failed' "
+                "WHERE snapshot_id = %s::uuid",
+                (snapshot_id,),
+            )
+            conn.commit()
+        except Exception:
+            pass
         print(f"\n  ERROR: {e}")
         raise
     finally:
