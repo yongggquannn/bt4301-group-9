@@ -44,6 +44,12 @@ MODEL_NAME = "KKBox-Churn-Classifier"
 DEFAULT_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 DEFAULT_PROMOTION_THRESHOLD = 0.0
 
+# Workstream F: business-metric gate.
+# Promotion requires BOTH an AUC improvement over the threshold AND no
+# regression on the business metric beyond BUSINESS_METRIC_TOLERANCE (absolute).
+BUSINESS_METRIC_KEY = os.getenv("BUSINESS_METRIC_KEY", "precision_churn")
+BUSINESS_METRIC_TOLERANCE = float(os.getenv("BUSINESS_METRIC_TOLERANCE", "0.01"))
+
 
 @dataclass(frozen=True)
 class StageTransition:
@@ -72,6 +78,12 @@ class RegistryResult:
     transitions: tuple[StageTransition, ...]
     final_stage: str
     registry_uri: str
+    # Workstream F: business-metric gate evidence.
+    business_metric_key: str = BUSINESS_METRIC_KEY
+    business_metric_tolerance: float = BUSINESS_METRIC_TOLERANCE
+    challenger_business_metric: float | None = None
+    champion_business_metric: float | None = None
+    business_metric_delta: float | None = None
 
 
 def load_best_model_info(path: Path) -> dict:
@@ -140,6 +152,41 @@ def get_model_roc_auc(client: MlflowClient, run_id: str) -> float:
         return float(run.data.metrics["roc_auc"])
     except KeyError as exc:
         raise KeyError(f"Run {run_id} is missing metric 'roc_auc'") from exc
+
+
+def get_model_business_metric(
+    client: MlflowClient,
+    run_id: str,
+    metric_key: str = BUSINESS_METRIC_KEY,
+) -> float | None:
+    """Read the business metric from the source run; return None if missing."""
+    try:
+        run = client.get_run(run_id)
+    except Exception:
+        return None
+    value = run.data.metrics.get(metric_key)
+    return float(value) if value is not None else None
+
+
+def evaluate_business_metric_gate(
+    challenger: float | None,
+    champion: float | None,
+    tolerance: float = BUSINESS_METRIC_TOLERANCE,
+) -> tuple[bool, float | None]:
+    """Decide whether the challenger clears the business-metric gate.
+
+    Returns ``(allow_promotion, delta)`` where ``delta = challenger - champion``.
+    If either side is missing, promotion is allowed (gate is permissive to
+    avoid blocking on incomplete metric coverage — the AUC gate still applies).
+    """
+    if challenger is None or champion is None:
+        return True, (
+            challenger - champion
+            if challenger is not None and champion is not None
+            else None
+        )
+    delta = challenger - champion
+    return delta >= -abs(tolerance), delta
 
 
 def get_current_production_version(
@@ -229,6 +276,11 @@ def save_evidence(result: RegistryResult, output_path: Path) -> None:
         "champion_auc": result.champion_auc,
         "promotion_threshold": result.promotion_threshold,
         "auc_margin": result.auc_margin,
+        "business_metric_key": result.business_metric_key,
+        "business_metric_tolerance": result.business_metric_tolerance,
+        "challenger_business_metric": result.challenger_business_metric,
+        "champion_business_metric": result.champion_business_metric,
+        "business_metric_delta": result.business_metric_delta,
         "decision": result.decision,
         "transitions": [
             {
@@ -348,10 +400,27 @@ def main() -> None:
             champion_auc,
         )
 
+    challenger_business_metric = float(
+        best_info.get("metrics", {}).get(BUSINESS_METRIC_KEY, float("nan"))
+    )
+    if challenger_business_metric != challenger_business_metric:  # NaN check
+        challenger_business_metric = None
+    champion_business_metric = (
+        get_model_business_metric(client, champion.run_id)
+        if champion is not None and champion.run_id
+        else None
+    )
+
     version = register_best_model(client, run_id, args.model_name)
 
     transitions: list[StageTransition] = []
     transitions.append(transition_stage(client, args.model_name, version, "Staging"))
+
+    business_gate_ok, business_metric_delta = evaluate_business_metric_gate(
+        challenger_business_metric,
+        champion_business_metric,
+        tolerance=BUSINESS_METRIC_TOLERANCE,
+    )
 
     if champion_auc is None:
         promote = True
@@ -359,8 +428,14 @@ def main() -> None:
         auc_margin = None
     else:
         auc_margin = challenger_auc - champion_auc
-        promote = challenger_auc > champion_auc + args.promotion_threshold
-        decision = "promoted_over_champion" if promote else "kept_existing_champion"
+        auc_gate_ok = challenger_auc > champion_auc + args.promotion_threshold
+        promote = auc_gate_ok and business_gate_ok
+        if promote:
+            decision = "promoted_over_champion"
+        elif not auc_gate_ok:
+            decision = "kept_existing_champion"
+        else:
+            decision = "kept_existing_champion_business_regression"
 
     timestamp = datetime.now(timezone.utc).isoformat()
     comparison_note = [
@@ -378,6 +453,17 @@ def main() -> None:
             f"AUC margin (challenger - champion): {auc_margin:.6f}"
             if auc_margin is not None
             else "AUC margin (challenger - champion): not applicable"
+        ),
+        (
+            f"Business metric ({BUSINESS_METRIC_KEY}) "
+            f"challenger={challenger_business_metric:.6f} "
+            f"champion={champion_business_metric:.6f} "
+            f"delta={business_metric_delta:.6f} "
+            f"tolerance={BUSINESS_METRIC_TOLERANCE:.6f} "
+            f"gate_ok={business_gate_ok}"
+            if challenger_business_metric is not None
+            and champion_business_metric is not None
+            else f"Business metric ({BUSINESS_METRIC_KEY}): not applicable"
         ),
     ]
 
@@ -407,6 +493,23 @@ def main() -> None:
             "champion_version": str(champion_version) if champion_version is not None else "none",
             "champion_auc": f"{champion_auc:.6f}" if champion_auc is not None else "none",
             "auc_margin": f"{auc_margin:.6f}" if auc_margin is not None else "none",
+            "business_metric_key": BUSINESS_METRIC_KEY,
+            "business_metric_tolerance": f"{BUSINESS_METRIC_TOLERANCE:.6f}",
+            "challenger_business_metric": (
+                f"{challenger_business_metric:.6f}"
+                if challenger_business_metric is not None
+                else "none"
+            ),
+            "champion_business_metric": (
+                f"{champion_business_metric:.6f}"
+                if champion_business_metric is not None
+                else "none"
+            ),
+            "business_metric_delta": (
+                f"{business_metric_delta:.6f}"
+                if business_metric_delta is not None
+                else "none"
+            ),
             "decision_timestamp": timestamp,
         },
     )
@@ -444,6 +547,11 @@ def main() -> None:
         transitions=tuple(transitions),
         final_stage=final_stage,
         registry_uri=registry_uri,
+        business_metric_key=BUSINESS_METRIC_KEY,
+        business_metric_tolerance=BUSINESS_METRIC_TOLERANCE,
+        challenger_business_metric=challenger_business_metric,
+        champion_business_metric=champion_business_metric,
+        business_metric_delta=business_metric_delta,
     )
 
     registry_path = ARTIFACT_DIR / "model_registry.json"

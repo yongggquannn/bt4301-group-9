@@ -36,6 +36,12 @@ SCORES_PATH = SCORING_DIR / "scores.parquet"
 HIGH_THRESHOLD = float(os.getenv("CHURN_HIGH_THRESHOLD", "0.7"))
 MEDIUM_THRESHOLD = float(os.getenv("CHURN_MEDIUM_THRESHOLD", "0.4"))
 
+# Workstream F: classification threshold policy version. Bump when the
+# High/Medium cutoffs change so historical predictions remain interpretable.
+CLASSIFICATION_THRESHOLD_VERSION: str = os.getenv(
+    "CLASSIFICATION_THRESHOLD_VERSION", "v1"
+)
+
 _REGISTRY_URI = "models:/KKBox-Churn-Classifier/Production"
 
 
@@ -151,18 +157,49 @@ def _extract_input_columns(signature) -> list[str]:
     return input_columns
 
 
+def _resolve_registered_version(model_uri: str) -> tuple[str | None, str | None]:
+    """Return (model_name, model_version) for a ``models:/<name>/<stage>`` URI.
+
+    Falls back to (None, None) for run-based URIs or when the registry lookup
+    fails — scoring still proceeds, but the prediction row is missing provenance.
+    """
+    if not model_uri.startswith("models:/"):
+        return None, None
+    try:
+        from mlflow.tracking import MlflowClient
+
+        _, name, stage = model_uri.split("/", 2)
+        client = MlflowClient()
+        versions = client.get_latest_versions(name, stages=[stage])
+        if versions:
+            return name, str(versions[0].version)
+    except Exception:
+        return None, None
+    return None, None
+
+
 def _build_model_metadata(model_uri: str, model_info) -> ProductionModelMetadata:
     input_columns = _extract_input_columns(model_info.signature)
+    model_name = getattr(model_info, "name", None)
+    model_version: str | None = (
+        str(model_info.registered_model_version)
+        if getattr(model_info, "registered_model_version", None) is not None
+        else None
+    )
+    # Fallback: some mlflow versions don't populate registered_model_version on
+    # ModelInfo when the URI is models:/<name>/<stage>. Ask the registry.
+    if model_version is None:
+        resolved_name, resolved_version = _resolve_registered_version(model_uri)
+        if resolved_version is not None:
+            model_version = resolved_version
+            if model_name is None:
+                model_name = resolved_name
     return ProductionModelMetadata(
         model_uri=model_uri,
         input_columns=input_columns,
         input_signature=model_info.signature.to_dict(),
-        model_name=getattr(model_info, "name", None),
-        model_version=(
-            str(model_info.registered_model_version)
-            if getattr(model_info, "registered_model_version", None) is not None
-            else None
-        ),
+        model_name=model_name,
+        model_version=model_version,
     )
 
 
@@ -256,10 +293,16 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
 
     if not artifacts.scores_path.exists():
         raise FileNotFoundError("Scores parquet not found. Run score first.")
+    if not artifacts.model_metadata_path.exists():
+        raise FileNotFoundError(
+            "Production model metadata not found. Run load_production_model first."
+        )
 
     scores = pd.read_parquet(artifacts.scores_path)
     scored_at = datetime.now(timezone.utc)
     scores["scored_at"] = scored_at
+    metadata = _load_model_metadata(artifacts.model_metadata_path)
+    model_version = metadata.model_version
 
     ddl = """
     CREATE TABLE IF NOT EXISTS processed.churn_predictions (
@@ -269,6 +312,8 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
         scored_at           TIMESTAMPTZ NOT NULL,
         shap_values         JSONB,
         feature_snapshot_id UUID,
+        model_version       TEXT,
+        threshold_version   TEXT,
         PRIMARY KEY (customer_id, scored_at)
     );
     """
@@ -280,6 +325,14 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
                 "ALTER TABLE processed.churn_predictions "
                 "ADD COLUMN IF NOT EXISTS feature_snapshot_id UUID"
             )
+            cur.execute(
+                "ALTER TABLE processed.churn_predictions "
+                "ADD COLUMN IF NOT EXISTS model_version TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE processed.churn_predictions "
+                "ADD COLUMN IF NOT EXISTS threshold_version TEXT"
+            )
 
         snapshot_id = get_current_snapshot_id(conn)
 
@@ -288,7 +341,10 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
                 index=False, name=None
             )
         )
-        rows = [(*row, snapshot_id) for row in rows]
+        rows = [
+            (*row, snapshot_id, model_version, CLASSIFICATION_THRESHOLD_VERSION)
+            for row in rows
+        ]
 
         with conn.cursor() as cur:
             execute_values(
@@ -296,7 +352,7 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
                 """
                 INSERT INTO processed.churn_predictions (
                     customer_id, churn_probability, risk_tier, scored_at,
-                    feature_snapshot_id
+                    feature_snapshot_id, model_version, threshold_version
                 )
                 VALUES %s
                 """,
@@ -306,7 +362,8 @@ def airflow_write_predictions(artifacts: ScoringArtifacts | None = None, **_) ->
 
     print(
         f"[write_predictions] Wrote {len(rows):,} rows into processed.churn_predictions"
-        f" (feature_snapshot={snapshot_id})"
+        f" (feature_snapshot={snapshot_id}, model_version={model_version},"
+        f" threshold_version={CLASSIFICATION_THRESHOLD_VERSION})"
     )
 
 

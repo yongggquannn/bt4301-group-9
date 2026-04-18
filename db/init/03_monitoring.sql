@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS processed.model_monitoring_results (
-    result_id               BIGSERIAL     PRIMARY KEY,  
+    result_id               BIGSERIAL     PRIMARY KEY,
     -- monitoring run timestamp
     monitored_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     -- baseline/current comparison windows (time-window reference for monitoring run)
@@ -23,5 +23,17 @@ CREATE TABLE IF NOT EXISTS processed.model_monitoring_results (
     baseline_row_count      INT           NOT NULL DEFAULT 0,
     current_row_count       INT           NOT NULL DEFAULT 0,
     -- feature-level drift details (JSON: {feature_name: psi_value})
-    psi_by_feature          JSONB         NOT NULL
+    psi_by_feature          JSONB         NOT NULL,
+    -- Workstream F: richer monitoring evidence
+    status                  TEXT          NOT NULL DEFAULT 'ok',
+    brier_score             NUMERIC(10,6),
+    max_calibration_error   NUMERIC(10,6),
+    calibration_bins        JSONB,
+    score_distribution      JSONB,
+    segment_psi             JSONB,
+    labeled_sample_count    INT           NOT NULL DEFAULT 0,
+    min_sample_threshold    INT           NOT NULL DEFAULT 0
 );
+
+CREATE INDEX IF NOT EXISTS idx_model_monitoring_results_monitored_at
+    ON processed.model_monitoring_results (monitored_at DESC);

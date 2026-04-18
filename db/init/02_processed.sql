@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS processed.churn_predictions (
     scored_at           TIMESTAMPTZ NOT NULL,
     shap_values         JSONB,
     feature_snapshot_id UUID,
+    model_version       TEXT,
+    threshold_version   TEXT,
     PRIMARY KEY (customer_id, scored_at)
 );
 
