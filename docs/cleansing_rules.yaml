@@ -119,3 +119,142 @@ derived_columns:
     formula: "total_payment_plan_days / no_of_transactions"
   amount_due:
     formula: "total_plan_list_price - total_actual_amount_paid"
+
+# ============================================================
+# Workstream E — Data validation rules
+# ============================================================
+# Each rule has a severity:
+#   - blocking : failure raises SystemExit(1) so Airflow fails the task
+#   - warning  : failure is persisted but the task still succeeds
+#
+# Types in required_columns match information_schema.columns.data_type
+# (e.g. 'text', 'smallint', 'integer', 'numeric', 'timestamp with time zone').
+# ------------------------------------------------------------
+validation:
+
+  # ---------------- schema contracts ----------------
+  schema:
+    - table: processed.customer_features
+      severity: blocking
+      required_columns:
+        msno: text
+        is_churn: smallint
+        transaction_count: integer
+        renewal_count: integer
+        cancel_count: integer
+        total_amount_paid: numeric
+        num_active_days: integer
+        total_secs: numeric
+        feature_created_at: timestamp with time zone
+    - table: processed.churn_predictions
+      severity: blocking
+      required_columns:
+        customer_id: text
+        churn_probability: numeric
+        risk_tier: character varying
+        scored_at: timestamp with time zone
+    - table: processed.feature_snapshots
+      severity: warning
+      required_columns:
+        snapshot_id: uuid
+        status: character varying
+        row_count: integer
+
+  # ---------------- freshness ----------------
+  # max_age_hours is picked to accommodate lab cadence (weekly manual triggers).
+  freshness:
+    - table: raw.members
+      timestamp_column: ingestion_timestamp
+      max_age_hours: 168
+      severity: warning
+    - table: raw.transactions
+      timestamp_column: ingestion_timestamp
+      max_age_hours: 168
+      severity: warning
+    - table: raw.user_logs
+      timestamp_column: ingestion_timestamp
+      max_age_hours: 168
+      severity: warning
+    - table: raw.train
+      timestamp_column: ingestion_timestamp
+      max_age_hours: 720  # labels are bounded historical; relaxed threshold
+      severity: warning
+
+  # ---------------- coverage / non-null thresholds ----------------
+  coverage:
+    - table: processed.customer_features
+      column: msno
+      min_non_null_ratio: 1.0
+      severity: blocking
+    - table: processed.customer_features
+      column: is_churn
+      min_non_null_ratio: 1.0
+      severity: blocking
+    - table: processed.customer_features
+      column: transaction_count
+      min_non_null_ratio: 0.95
+      severity: blocking
+    - table: processed.customer_features
+      column: total_amount_paid
+      min_non_null_ratio: 0.85
+      severity: warning
+    - table: processed.customer_features
+      column: latest_payment_method_id
+      min_non_null_ratio: 0.85
+      severity: warning
+    - table: processed.customer_features
+      column: num_active_days
+      min_non_null_ratio: 0.50
+      severity: warning
+
+  # ---------------- distribution drift vs persisted baseline ----------------
+  # For each numeric column we record the current run's (mean, std, n) in
+  # validation_results.detail. The next run pulls the most recent prior record
+  # and fails if |curr_mean - baseline_mean| > deviation_threshold * baseline_std.
+  distribution:
+    table: processed.customer_features
+    severity: warning
+    deviation_threshold: 2.0
+    numeric_columns:
+      - transaction_count
+      - total_amount_paid
+      - num_active_days
+      - total_secs
+
+  # ---------------- legacy smoke checks (kept for continuity) ----------------
+  smoke:
+    - rule_name: row_count_positive
+      severity: blocking
+      kind: row_count_positive
+      table: processed.customer_features
+    - rule_name: row_count_matches_train
+      severity: blocking
+      kind: row_count_match
+      left_table: processed.customer_features
+      right_table: raw.train
+    - rule_name: is_churn_binary
+      severity: blocking
+      kind: value_in_set
+      table: processed.customer_features
+      column: is_churn
+      allowed_values: [0, 1]
+    - rule_name: no_duplicate_msno
+      severity: blocking
+      kind: unique_column
+      table: processed.customer_features
+      column: msno
+    - rule_name: bd_in_plausible_range
+      severity: warning
+      kind: numeric_range
+      table: processed.customer_features
+      column: bd
+      min: 0
+      max: 100
+      allow_null: true
+    - rule_name: total_amount_paid_non_negative
+      severity: blocking
+      kind: numeric_range
+      table: processed.customer_features
+      column: total_amount_paid
+      min: 0
+      allow_null: true
