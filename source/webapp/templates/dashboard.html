@@ -14,9 +14,11 @@
         .summary-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem; background: #f8fafc; }
         .summary-label { color: #6b7280; font-size: 0.85rem; margin-bottom: 0.35rem; }
         .summary-value { font-size: 1.7rem; font-weight: 700; }
-        .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1.25rem 0 0.75rem; }
+        .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1.25rem 0 0.75rem; align-items: flex-end; }
         .controls label { font-size: 0.9rem; color: #374151; display: flex; flex-direction: column; gap: 0.35rem; }
         select { min-width: 180px; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid #d1d5db; background: white; }
+        .clear-filters { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.8rem; border-radius: 8px; border: 1px solid #d1d5db; background: #f9fafb; color: #374151; font-size: 0.85rem; font-weight: 500; text-decoration: none; transition: background 0.15s, border-color 0.15s; }
+        .clear-filters:hover { background: #f3f4f6; border-color: #9ca3af; color: #111827; }
         table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 0.95rem; }
         th, td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
         th { background: #f9fafb; font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
@@ -165,9 +167,18 @@
     {% endfor %}
 
     <!-- ===== Retention Queue (existing) ===== -->
-    <hr class="section-divider">
-    <h2 class="section-heading">Top 50 Highest-Risk Customers</h2>
-    <p class="subtitle" style="margin-bottom:0.5rem;">Apply filters and click column headers to sort</p>
+    <hr class="section-divider" id="retention-queue">
+    {% set risk_label = (active_risk_tier ~ '-Risk') if active_risk_tier else 'Highest-Risk' %}
+    {% set segment_label = (' ' ~ active_segment) if active_segment else '' %}
+    <h2 class="section-heading">Top 50 {{ risk_label }}{{ segment_label }} Customers</h2>
+    <p class="subtitle" style="margin-bottom:0.5rem;">
+        {% if active_risk_tier or active_segment %}
+        Showing {{ customers | length }} customer{{ '' if customers | length == 1 else 's' }}
+        matching the selected filter{{ 's' if active_risk_tier and active_segment else '' }}.
+        {% else %}
+        Apply filters and click column headers to sort.
+        {% endif %}
+    </p>
 
     {% if customers %}
     <section class="summary-grid">
@@ -189,27 +200,30 @@
         </article>
     </section>
 
-    <div class="controls">
+    <form method="get" action="/dashboard#retention-queue" class="controls" id="filter-form">
         <label>
             Risk Tier
-            <select id="risk-filter">
-                <option value="">All risk tiers</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
+            <select id="risk-filter" name="risk_tier" onchange="document.getElementById('filter-form').submit()">
+                <option value="" {% if not active_risk_tier %}selected{% endif %}>All risk tiers</option>
+                <option value="High" {% if active_risk_tier == 'High' %}selected{% endif %}>High</option>
+                <option value="Medium" {% if active_risk_tier == 'Medium' %}selected{% endif %}>Medium</option>
+                <option value="Low" {% if active_risk_tier == 'Low' %}selected{% endif %}>Low</option>
             </select>
         </label>
         <label>
             Customer Segment
-            <select id="segment-filter">
-                <option value="">All segments</option>
-                <option value="Payment Friction">Payment Friction</option>
-                <option value="Low Engagement">Low Engagement</option>
-                <option value="Stable">Stable</option>
-                <option value="General">General</option>
+            <select id="segment-filter" name="segment" onchange="document.getElementById('filter-form').submit()">
+                <option value="" {% if not active_segment %}selected{% endif %}>All segments</option>
+                <option value="Payment Friction" {% if active_segment == 'Payment Friction' %}selected{% endif %}>Payment Friction</option>
+                <option value="Low Engagement" {% if active_segment == 'Low Engagement' %}selected{% endif %}>Low Engagement</option>
+                <option value="Stable" {% if active_segment == 'Stable' %}selected{% endif %}>Stable</option>
+                <option value="General" {% if active_segment == 'General' %}selected{% endif %}>General</option>
             </select>
         </label>
-    </div>
+        {% if active_risk_tier or active_segment %}
+        <a href="/dashboard#retention-queue" class="clear-filters">✕ Clear filters</a>
+        {% endif %}
+    </form>
 
     <table id="dashboard-table">
         <thead>
@@ -254,24 +268,6 @@
     {% endif %}
 
     <script>
-        var table = document.querySelector('#dashboard-table');
-        var tbody = table ? table.querySelector('tbody') : null;
-        var riskFilter = document.querySelector('#risk-filter');
-        var segmentFilter = document.querySelector('#segment-filter');
-
-        function applyFilters() {
-            if (!tbody) return;
-            Array.from(tbody.querySelectorAll('tr')).forEach(function(row) {
-                var riskMatch = !riskFilter.value || row.dataset.riskTier === riskFilter.value;
-                var segmentMatch = !segmentFilter.value || row.dataset.segment === segmentFilter.value;
-                row.style.display = (riskMatch && segmentMatch) ? '' : 'none';
-            });
-        }
-
-        [riskFilter, segmentFilter].forEach(function(control) {
-            if (control) control.addEventListener('change', applyFilters);
-        });
-
         document.querySelectorAll('#dashboard-table th[data-sort]').forEach(function(th) {
             th.addEventListener('click', function() {
                 var table = th.closest('table');

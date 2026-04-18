@@ -59,7 +59,7 @@ def test_dashboard_renders_summary_and_actions(monkeypatch) -> None:
             "top_3_shap": None,
         }
     ]
-    monkeypatch.setattr(app_module, "_get_top_customers", lambda: sample_customers)
+    monkeypatch.setattr(app_module, "_get_top_customers", lambda risk_tier=None: sample_customers)
     monkeypatch.setattr(
         app_module,
         "_get_dashboard_context",

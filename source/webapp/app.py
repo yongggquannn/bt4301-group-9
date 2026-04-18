@@ -116,9 +116,13 @@ FROM (
 ) latest
 LEFT JOIN processed.customer_features cf
   ON cf.msno = latest.customer_id
+WHERE (%(risk_tier)s::text IS NULL OR latest.risk_tier = %(risk_tier)s)
 ORDER BY churn_probability DESC
 LIMIT 50;
 """
+
+ALLOWED_RISK_TIERS = ("High", "Medium", "Low")
+ALLOWED_SEGMENTS = ("Payment Friction", "Low Engagement", "Stable", "General")
 
 _SUMMARY_COUNTS_SQL = """
 SELECT
@@ -457,14 +461,16 @@ def _get_prediction(customer_id: str) -> dict | None:
     return _enrich_prediction_row(row)
 
 
-def _get_top_customers() -> list[dict]:
+def _get_top_customers(risk_tier: str | None = None) -> list[dict]:
+    if risk_tier is not None and risk_tier not in ALLOWED_RISK_TIERS:
+        risk_tier = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
     except psycopg2.OperationalError as exc:
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(_DASHBOARD_SQL)
+            cur.execute(_DASHBOARD_SQL, {"risk_tier": risk_tier})
             rows = cur.fetchall()
     finally:
         conn.close()
@@ -585,8 +591,16 @@ def home(request: Request) -> HTMLResponse:
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request) -> HTMLResponse:
-    customers = _get_top_customers()
+def dashboard(
+    request: Request,
+    risk_tier: str | None = None,
+    segment: str | None = None,
+) -> HTMLResponse:
+    active_risk_tier = risk_tier if risk_tier in ALLOWED_RISK_TIERS else None
+    active_segment = segment if segment in ALLOWED_SEGMENTS else None
+    customers = _get_top_customers(active_risk_tier)
+    if active_segment:
+        customers = [c for c in customers if c["customer_segment"] == active_segment]
     ctx = _get_dashboard_context()
     return templates.TemplateResponse(
         request,
@@ -594,6 +608,8 @@ def dashboard(request: Request) -> HTMLResponse:
         {
             "customers": customers,
             "summary": _build_dashboard_summary(customers),
+            "active_risk_tier": active_risk_tier,
+            "active_segment": active_segment,
             **ctx,
         },
     )
