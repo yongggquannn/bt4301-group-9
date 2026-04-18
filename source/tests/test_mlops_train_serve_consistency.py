@@ -4,17 +4,21 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import numpy as np
-import pandas as pd
 import pytest
+
+pytestmark = pytest.mark.mlops
+
+np = pytest.importorskip("numpy")
+pd = pytest.importorskip("pandas")
+pytest.importorskip("mlflow")
+pytest.importorskip("sklearn")
+
 from mlflow.models import infer_signature  # still used by test_airflow_load_production_model_writes_metadata
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from source.mlops import register_model, score_churn
-
-pytestmark = pytest.mark.mlops
 
 
 def test_extract_input_columns_from_signature() -> None:
