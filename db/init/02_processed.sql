@@ -68,3 +68,24 @@ CREATE TABLE IF NOT EXISTS processed.churn_predictions (
     feature_snapshot_id UUID,
     PRIMARY KEY (customer_id, scored_at)
 );
+
+-- Workstream E — stronger validation and contracts.
+-- One row per rule per validate_data run; blocking failures fail the task.
+CREATE TABLE IF NOT EXISTS processed.validation_results (
+    result_id   BIGSERIAL   PRIMARY KEY,
+    run_id      TEXT        NOT NULL,
+    rule_name   TEXT        NOT NULL,
+    severity    VARCHAR(16) NOT NULL,
+    status      VARCHAR(16) NOT NULL,
+    detail      JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_results_run_id
+    ON processed.validation_results (run_id);
+
+CREATE INDEX IF NOT EXISTS idx_validation_results_created_at
+    ON processed.validation_results (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_validation_results_rule_name
+    ON processed.validation_results (rule_name, created_at DESC);
