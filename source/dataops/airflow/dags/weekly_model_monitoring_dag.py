@@ -49,6 +49,19 @@ REGISTRY_EVIDENCE_PATH = PROJECT_ROOT / "docs" / "artifacts" / "model_registry.j
 
 from source.common.db import get_connection as get_pg_conn
 from source.common.monitoring_utils import compute_psi, roc_auc_binary
+from source.mlops.monitoring import (
+    MAX_CALIBRATION_ERROR_THRESHOLD,
+    MIN_LABELED_SAMPLES,
+    SEGMENT_PSI_THRESHOLD,
+    compute_brier_score,
+    compute_calibration_bins,
+    compute_max_calibration_error,
+    compute_score_distribution,
+    segment_psi_breached,
+)
+
+# Monitoring DAG segments — derived at query time from customer_features columns.
+SEGMENT_COLUMNS = ("latest_is_auto_renew", "has_cancel_history")
 
 
 def stable_bucket(key: str) -> int:
@@ -178,6 +191,9 @@ def weekly_model_monitoring():
                         p.scored_at,
                         p.churn_probability::float8 AS score,
                         t.is_churn::int AS label,
+                        COALESCE(cf.latest_is_auto_renew, 0)::int AS latest_is_auto_renew,
+                        CASE WHEN COALESCE(cf.cancel_count, 0) > 0 THEN 1 ELSE 0 END
+                            AS has_cancel_history,
                         {", ".join([f"cf.{f}::float8 AS {f}" for f in top_5_features])}
                     FROM {predictions_table} p
                     JOIN processed.customer_features cf
@@ -270,7 +286,83 @@ def weekly_model_monitoring():
                     f"AUC degradation threshold breached: delta={auc_delta:.4f} (>0.05)"
                 )
 
-            breached = len(breached_reasons) > 0
+            # --- Workstream F: calibration + segment PSI + sample-size guard ---
+            current_y_true = y_true[current_mask]
+            current_y_score = y_score[current_mask]
+            calibration_bins: list[dict] = []
+            brier_score: float | None = None
+            max_cal_err: float | None = None
+            score_distribution: list[dict] = []
+            segment_psi: dict[str, float] = {}
+
+            labeled_sample_count = int(current_y_true.size)
+            insufficient = labeled_sample_count < MIN_LABELED_SAMPLES
+
+            if labeled_sample_count > 0:
+                try:
+                    calibration_bins = list(
+                        compute_calibration_bins(current_y_true, current_y_score, n_bins=10)
+                    )
+                    brier_score = compute_brier_score(current_y_true, current_y_score)
+                    max_cal_err = compute_max_calibration_error(calibration_bins)
+                    score_distribution = list(compute_score_distribution(current_y_score))
+                except ValueError as exc:
+                    breached_reasons.append(f"Calibration computation failed: {exc}")
+
+                # Per-segment PSI — compare current vs baseline for each segment key.
+                segment_df_baseline = pd.DataFrame(
+                    {
+                        "score": y_score[baseline_mask],
+                        **{
+                            col: np.array([r[col] for r in rows])[baseline_mask]
+                            for col in SEGMENT_COLUMNS
+                        },
+                    }
+                )
+                segment_df_current = pd.DataFrame(
+                    {
+                        "score": current_y_score,
+                        **{
+                            col: np.array([r[col] for r in rows])[current_mask]
+                            for col in SEGMENT_COLUMNS
+                        },
+                    }
+                )
+                try:
+                    from source.mlops.monitoring import compute_segment_psi
+
+                    segment_psi = compute_segment_psi(
+                        segment_df_baseline,
+                        segment_df_current,
+                        segment_columns=list(SEGMENT_COLUMNS),
+                        score_column="score",
+                    )
+                except ValueError as exc:
+                    breached_reasons.append(f"Segment PSI failed: {exc}")
+
+            if insufficient:
+                status = "insufficient_data"
+                # Don't flip breached just because we saw a single PSI number;
+                # we don't have enough labels to trust the verdict yet.
+                breached_reasons.append(
+                    f"Insufficient labelled samples in current window: "
+                    f"{labeled_sample_count} < {MIN_LABELED_SAMPLES}"
+                )
+                breached = False
+            else:
+                if max_cal_err is not None and max_cal_err > MAX_CALIBRATION_ERROR_THRESHOLD:
+                    breached_reasons.append(
+                        f"Calibration error exceeds threshold: "
+                        f"{max_cal_err:.4f} > {MAX_CALIBRATION_ERROR_THRESHOLD}"
+                    )
+                bad_segments = segment_psi_breached(segment_psi, SEGMENT_PSI_THRESHOLD)
+                if bad_segments:
+                    breached_reasons.append(
+                        f"Segment PSI breached ({SEGMENT_PSI_THRESHOLD}): "
+                        f"{', '.join(bad_segments)}"
+                    )
+                breached = len(breached_reasons) > 0
+                status = "breached" if breached else "ok"
 
             with conn.cursor() as cur:
                 cur.execute(
@@ -326,6 +418,31 @@ def weekly_model_monitoring():
                     "ALTER TABLE processed.model_monitoring_results "
                     "ADD COLUMN IF NOT EXISTS current_row_count INT NOT NULL DEFAULT 0"
                 )
+                # Workstream F: ensure the richer monitoring columns exist on
+                # long-lived DBs that were created before the F migration.
+                cur.execute(
+                    "ALTER TABLE processed.model_monitoring_results "
+                    "ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ok'"
+                )
+                for col, typ in [
+                    ("brier_score", "NUMERIC(10,6)"),
+                    ("max_calibration_error", "NUMERIC(10,6)"),
+                    ("calibration_bins", "JSONB"),
+                    ("score_distribution", "JSONB"),
+                    ("segment_psi", "JSONB"),
+                ]:
+                    cur.execute(
+                        f"ALTER TABLE processed.model_monitoring_results "
+                        f"ADD COLUMN IF NOT EXISTS {col} {typ}"
+                    )
+                cur.execute(
+                    "ALTER TABLE processed.model_monitoring_results "
+                    "ADD COLUMN IF NOT EXISTS labeled_sample_count INT NOT NULL DEFAULT 0"
+                )
+                cur.execute(
+                    "ALTER TABLE processed.model_monitoring_results "
+                    "ADD COLUMN IF NOT EXISTS min_sample_threshold INT NOT NULL DEFAULT 0"
+                )
                 cur.execute(
                     """
                     INSERT INTO processed.model_monitoring_results (
@@ -343,9 +460,18 @@ def weekly_model_monitoring():
                         baseline_auc_source,
                         cohort_strategy,
                         baseline_row_count,
-                        current_row_count
+                        current_row_count,
+                        status,
+                        brier_score,
+                        max_calibration_error,
+                        calibration_bins,
+                        score_distribution,
+                        segment_psi,
+                        labeled_sample_count,
+                        min_sample_threshold
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s,
+                            %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s)
                     """,
                     (
                         baseline_window_start,
@@ -363,12 +489,21 @@ def weekly_model_monitoring():
                         cohort_strategy,
                         baseline_n,
                         current_n,
+                        status,
+                        brier_score,
+                        max_cal_err,
+                        json.dumps(calibration_bins),
+                        json.dumps(score_distribution),
+                        json.dumps(segment_psi),
+                        labeled_sample_count,
+                        MIN_LABELED_SAMPLES,
                     ),
                 )
 
             conn.commit()
 
         return {
+            "status": status,
             "breached": breached,
             "breached_reasons": breached_reasons,
             "predictions_table": predictions_table,
@@ -382,6 +517,11 @@ def weekly_model_monitoring():
             "cohort_strategy": cohort_strategy,
             "baseline_row_count": baseline_n,
             "current_row_count": current_n,
+            "labeled_sample_count": labeled_sample_count,
+            "min_sample_threshold": MIN_LABELED_SAMPLES,
+            "brier_score": brier_score,
+            "max_calibration_error": max_cal_err,
+            "segment_psi": segment_psi,
         }
 
     @task.branch(task_id="evaluate_thresholds")

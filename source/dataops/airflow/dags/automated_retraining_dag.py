@@ -64,6 +64,9 @@ def automated_retraining():
     @task.branch(task_id="check_drift_results")
     def check_drift_results() -> str:
         with get_pg_conn() as conn:
+            # Tolerate older monitoring rows that predate workstream F (no `status`
+            # column). Prefer the status column when it exists; otherwise fall back
+            # to the legacy `breached` flag.
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
                     """
@@ -77,7 +80,10 @@ def automated_retraining():
                         breached_reasons,
                         baseline_row_count,
                         current_row_count,
-                        psi_by_feature
+                        psi_by_feature,
+                        COALESCE(status, CASE WHEN breached THEN 'breached' ELSE 'ok' END) AS status,
+                        labeled_sample_count,
+                        min_sample_threshold
                     FROM processed.model_monitoring_results
                     ORDER BY monitored_at DESC
                     LIMIT 1
@@ -88,6 +94,22 @@ def automated_retraining():
         if row is None:
             return "skip_retraining"
 
+        # Workstream F: if the latest monitoring run flagged insufficient data,
+        # do not retrain. Retraining on sparse/unlabelled windows produces a
+        # noisy model and masks the real problem (missing labels).
+        status = (row.get("status") or "ok").lower()
+        if status == "insufficient_data":
+            payload = {
+                "checked_at": datetime.utcnow().isoformat() + "Z",
+                "status": status,
+                "labeled_sample_count": int(row.get("labeled_sample_count") or 0),
+                "min_sample_threshold": int(row.get("min_sample_threshold") or 0),
+                "should_retrain": False,
+                "reason": "insufficient_labeled_samples",
+            }
+            DECISION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            return "skip_retraining"
+
         max_psi = float(row["max_psi"] or 0.0)
         auc_delta = float(row["auc_delta"]) if row["auc_delta"] is not None else None
         should_retrain = max_psi > PSI_THRESHOLD or (
@@ -96,6 +118,7 @@ def automated_retraining():
 
         payload = {
             "checked_at": datetime.utcnow().isoformat() + "Z",
+            "status": status,
             "latest_monitoring_row": {
                 "monitored_at": row["monitored_at"].isoformat() if row["monitored_at"] else None,
                 "baseline_auc": float(row["baseline_auc"]) if row["baseline_auc"] is not None else None,
@@ -107,6 +130,8 @@ def automated_retraining():
                 "baseline_row_count": int(row["baseline_row_count"] or 0),
                 "current_row_count": int(row["current_row_count"] or 0),
                 "psi_by_feature": row["psi_by_feature"],
+                "labeled_sample_count": int(row.get("labeled_sample_count") or 0),
+                "min_sample_threshold": int(row.get("min_sample_threshold") or 0),
             },
             "psi_threshold": PSI_THRESHOLD,
             "auc_delta_threshold": AUC_DELTA_THRESHOLD,
