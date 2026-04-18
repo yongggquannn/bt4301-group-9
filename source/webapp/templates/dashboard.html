@@ -3,13 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Churn Risk Dashboard — KKBox</title>
+    <title>Retention Queue — KKBox</title>
     <style>
-        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+        body { font-family: system-ui, sans-serif; max-width: 1200px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
         h1 { font-size: 1.4rem; }
         nav { margin-bottom: 1rem; font-size: 0.9rem; }
         nav a { color: #2563eb; text-decoration: none; }
         nav a:hover { text-decoration: underline; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.9rem; margin: 1.25rem 0; }
+        .summary-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem; background: #f8fafc; }
+        .summary-label { color: #6b7280; font-size: 0.85rem; margin-bottom: 0.35rem; }
+        .summary-value { font-size: 1.7rem; font-weight: 700; }
+        .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1.25rem 0 0.75rem; align-items: flex-end; }
+        .controls label { font-size: 0.9rem; color: #374151; display: flex; flex-direction: column; gap: 0.35rem; }
+        select { min-width: 180px; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid #d1d5db; background: white; }
+        .clear-filters { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.8rem; border-radius: 8px; border: 1px solid #d1d5db; background: #f9fafb; color: #374151; font-size: 0.85rem; font-weight: 500; text-decoration: none; transition: background 0.15s, border-color 0.15s; }
+        .clear-filters:hover { background: #f3f4f6; border-color: #9ca3af; color: #111827; }
         table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 0.95rem; }
         th, td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
         th { background: #f9fafb; font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
@@ -21,18 +30,201 @@
         .tier-high { background: #fee2e2; color: #991b1b; }
         .tier-medium { background: #fef3c7; color: #92400e; }
         .tier-low { background: #d1fae5; color: #065f46; }
+        .priority { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
+        .priority-urgent { background: #991b1b; color: #fff; }
+        .priority-high { background: #dc2626; color: #fff; }
+        .priority-medium { background: #f59e0b; color: #111827; }
+        .priority-low { background: #d1fae5; color: #065f46; }
         a.customer-link { color: #2563eb; text-decoration: none; font-family: monospace; font-size: 0.9rem; }
         a.customer-link:hover { text-decoration: underline; }
         .empty { color: #6b7280; margin-top: 2rem; text-align: center; }
         .subtitle { color: #6b7280; font-size: 0.9rem; margin: 0.25rem 0 0; }
+        .action-cell { min-width: 230px; }
+
+        /* --- Manager / Portfolio View --- */
+        .portfolio-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.9rem; margin: 1.5rem 0; }
+        .portfolio-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.9rem 1rem; text-align: center; }
+        .portfolio-card .pf-value { font-size: 1.8rem; font-weight: 700; margin: 0.2rem 0; }
+        .portfolio-card .pf-label { font-size: 0.82rem; color: #6b7280; }
+        .pf-high   { border-left: 4px solid #991b1b; }
+        .pf-medium { border-left: 4px solid #92400e; }
+        .pf-low    { border-left: 4px solid #065f46; }
+        .pf-total  { border-left: 4px solid #2563eb; }
+
+        .status-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.75rem 0 1.25rem; }
+        .status-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem; border-radius: 6px; font-size: 0.82rem; font-weight: 600; }
+        .status-ok    { background: #d1fae5; color: #065f46; }
+        .status-warn  { background: #fef3c7; color: #92400e; }
+        .status-alert { background: #fee2e2; color: #991b1b; }
+        .status-neutral { background: #f3f4f6; color: #374151; }
+
+        .section-heading { font-size: 1.05rem; font-weight: 600; margin: 1.5rem 0 0.6rem; color: #1a1a1a; }
+        .dist-chart { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 1.25rem; }
+        .dist-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+        .dist-label { width: 56px; text-align: right; flex-shrink: 0; color: #374151; }
+        .dist-bar-bg { flex: 1; background: #f3f4f6; border-radius: 3px; height: 18px; overflow: hidden; }
+        .dist-bar { height: 100%; border-radius: 3px; min-width: 2px; }
+        .dist-count { width: 36px; text-align: left; flex-shrink: 0; color: #6b7280; font-size: 0.78rem; }
+
+        .segment-group { margin-bottom: 1.25rem; }
+        .segment-group h3 { font-size: 0.92rem; font-weight: 600; margin: 0 0 0.4rem; color: #374151; }
+        .segment-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .segment-table th, .segment-table td { padding: 0.35rem 0.55rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        .segment-table th { background: #f9fafb; font-weight: 600; }
+
+        .section-divider { border: none; border-top: 2px solid #e5e7eb; margin: 2rem 0 1rem; }
     </style>
 </head>
 <body>
     <nav><a href="/">← Home</a></nav>
-    <h1>Churn Risk Dashboard</h1>
-    <p class="subtitle">Top 50 highest-risk customers — click column headers to sort</p>
+    <h1>Retention Queue</h1>
+    <p class="subtitle">Portfolio-level churn risk overview and system health</p>
+
+    <!-- ===== Manager / Portfolio View ===== -->
+
+    <!-- Portfolio Summary Cards -->
+    <div class="portfolio-cards">
+        <div class="portfolio-card pf-high">
+            <div class="pf-label">High Risk</div>
+            <div class="pf-value" style="color:#991b1b;">{{ portfolio.high_count }}</div>
+            <div class="pf-label">customers</div>
+        </div>
+        <div class="portfolio-card pf-medium">
+            <div class="pf-label">Medium Risk</div>
+            <div class="pf-value" style="color:#92400e;">{{ portfolio.medium_count }}</div>
+            <div class="pf-label">customers</div>
+        </div>
+        <div class="portfolio-card pf-low">
+            <div class="pf-label">Low Risk</div>
+            <div class="pf-value" style="color:#065f46;">{{ portfolio.low_count }}</div>
+            <div class="pf-label">customers</div>
+        </div>
+        <div class="portfolio-card pf-total">
+            <div class="pf-label">Total Scored</div>
+            <div class="pf-value" style="color:#2563eb;">{{ portfolio.total_scored }}</div>
+            <div class="pf-label">customers</div>
+        </div>
+    </div>
+
+    <!-- Model Freshness & Monitoring Status -->
+    <div class="status-row">
+        <span class="status-badge status-neutral">Scored: {{ portfolio.latest_scored_at }}</span>
+        {% if monitoring %}
+        <span class="status-badge status-neutral">Monitored: {{ monitoring.monitored_at }}</span>
+        {% if monitoring.breached %}
+        <span class="status-badge status-alert">Drift Alert</span>
+        {% else %}
+        <span class="status-badge status-ok">No Drift</span>
+        {% endif %}
+        {% if monitoring.current_auc is not none %}
+        <span class="status-badge {% if monitoring.auc_delta is not none and monitoring.auc_delta > 0.05 %}status-warn{% else %}status-ok{% endif %}">
+            AUC: {{ "%.3f"|format(monitoring.current_auc) }}{% if monitoring.auc_delta is not none %} ({{ "%+.3f"|format(-monitoring.auc_delta) }}){% endif %}
+        </span>
+        {% endif %}
+        <span class="status-badge {% if monitoring.max_psi > 0.2 %}status-alert{% elif monitoring.max_psi > 0.1 %}status-warn{% else %}status-ok{% endif %}">
+            PSI: {{ "%.3f"|format(monitoring.max_psi) }}
+        </span>
+        {% else %}
+        <span class="status-badge status-neutral">No monitoring data available</span>
+        {% endif %}
+    </div>
+
+    <!-- Churn Probability Distribution -->
+    <h2 class="section-heading">Churn Probability Distribution</h2>
+    <div class="dist-chart">
+        {% for d in distribution %}
+        <div class="dist-row">
+            <span class="dist-label">{{ d.bucket }}</span>
+            <div class="dist-bar-bg">
+                <div class="dist-bar" style="width:{{ d.pct }}%; background:{% if loop.index <= 3 %}#86efac{% elif loop.index <= 5 %}#fde68a{% elif loop.index <= 7 %}#fdba74{% else %}#fca5a5{% endif %};"></div>
+            </div>
+            <span class="dist-count">{{ d.count }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Segment Breakdowns -->
+    <h2 class="section-heading">Segment Breakdowns</h2>
+    {% for seg_type, segments in segments_by_type.items() %}
+    <div class="segment-group">
+        <h3>{{ segment_type_labels.get(seg_type, seg_type) }}</h3>
+        <table class="segment-table">
+            <thead>
+                <tr><th>Segment</th><th>Customers</th><th>High Risk</th><th>Avg Churn Prob</th></tr>
+            </thead>
+            <tbody>
+                {% for s in segments %}
+                <tr>
+                    <td>{{ s.name }}</td>
+                    <td>{{ s.total }}</td>
+                    <td><span class="tier tier-high" style="font-size:0.78rem;">{{ s.high_count }}</span></td>
+                    <td>{{ "%.1f"|format(s.avg_churn_prob * 100) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+
+    <!-- ===== Retention Queue (existing) ===== -->
+    <hr class="section-divider" id="retention-queue">
+    {% set risk_label = (active_risk_tier ~ '-Risk') if active_risk_tier else 'Highest-Risk' %}
+    {% set segment_label = (' ' ~ active_segment) if active_segment else '' %}
+    <h2 class="section-heading">Top 50 {{ risk_label }}{{ segment_label }} Customers</h2>
+    <p class="subtitle" style="margin-bottom:0.5rem;">
+        {% if active_risk_tier or active_segment %}
+        Showing {{ customers | length }} customer{{ '' if customers | length == 1 else 's' }}
+        matching the selected filter{{ 's' if active_risk_tier and active_segment else '' }}.
+        {% else %}
+        Apply filters and click column headers to sort.
+        {% endif %}
+    </p>
 
     {% if customers %}
+    <section class="summary-grid">
+        <article class="summary-card">
+            <div class="summary-label">Customers Shown</div>
+            <div class="summary-value">{{ summary.total_customers }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">High Risk</div>
+            <div class="summary-value">{{ summary.high_risk_count }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Medium Risk</div>
+            <div class="summary-value">{{ summary.medium_risk_count }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Avg. Churn Probability</div>
+            <div class="summary-value">{{ "%.1f" | format(summary.avg_churn_probability * 100) }}%</div>
+        </article>
+    </section>
+
+    <form method="get" action="/dashboard#retention-queue" class="controls" id="filter-form">
+        <label>
+            Risk Tier
+            <select id="risk-filter" name="risk_tier" onchange="document.getElementById('filter-form').submit()">
+                <option value="" {% if not active_risk_tier %}selected{% endif %}>All risk tiers</option>
+                <option value="High" {% if active_risk_tier == 'High' %}selected{% endif %}>High</option>
+                <option value="Medium" {% if active_risk_tier == 'Medium' %}selected{% endif %}>Medium</option>
+                <option value="Low" {% if active_risk_tier == 'Low' %}selected{% endif %}>Low</option>
+            </select>
+        </label>
+        <label>
+            Customer Segment
+            <select id="segment-filter" name="segment" onchange="document.getElementById('filter-form').submit()">
+                <option value="" {% if not active_segment %}selected{% endif %}>All segments</option>
+                <option value="Payment Friction" {% if active_segment == 'Payment Friction' %}selected{% endif %}>Payment Friction</option>
+                <option value="Low Engagement" {% if active_segment == 'Low Engagement' %}selected{% endif %}>Low Engagement</option>
+                <option value="Stable" {% if active_segment == 'Stable' %}selected{% endif %}>Stable</option>
+                <option value="General" {% if active_segment == 'General' %}selected{% endif %}>General</option>
+            </select>
+        </label>
+        {% if active_risk_tier or active_segment %}
+        <a href="/dashboard#retention-queue" class="clear-filters">✕ Clear filters</a>
+        {% endif %}
+    </form>
+
     <table id="dashboard-table">
         <thead>
             <tr>
@@ -40,12 +232,15 @@
                 <th data-sort="string">Customer ID</th>
                 <th data-sort="number">Churn Probability</th>
                 <th data-sort="string">Risk Tier</th>
+                <th data-sort="string">Priority</th>
+                <th data-sort="string">Segment</th>
+                <th data-sort="string">Recommended Action</th>
                 <th data-sort="string">Scored At</th>
             </tr>
         </thead>
         <tbody>
             {% for c in customers %}
-            <tr>
+            <tr data-risk-tier="{{ c.risk_tier }}" data-segment="{{ c.customer_segment }}">
                 <td data-value="{{ loop.index }}">{{ loop.index }}</td>
                 <td><a class="customer-link" href="/customer/{{ c.customer_url }}">{{ c.customer_id }}</a></td>
                 <td data-value="{{ c.churn_probability }}">{{ "%.1f" | format(c.churn_probability * 100) }}%</td>
@@ -58,6 +253,11 @@
                     <span class="tier tier-low">Low</span>
                     {% endif %}
                 </td>
+                <td data-value="{{ c.intervention_priority }}">
+                    <span class="priority priority-{{ c.intervention_priority | lower }}">{{ c.intervention_priority }}</span>
+                </td>
+                <td>{{ c.customer_segment }}</td>
+                <td class="action-cell">{{ c.recommended_action }}</td>
                 <td>{{ c.scored_at }}</td>
             </tr>
             {% endfor %}
@@ -105,6 +305,7 @@
                 });
 
                 rows.forEach(function(r) { tbody.appendChild(r); });
+                applyFilters();
             });
         });
     </script>
