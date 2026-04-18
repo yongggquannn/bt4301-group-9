@@ -661,6 +661,82 @@ WHERE feature_snapshot_id IS NOT NULL;
 
 ---
 
+### Step 18 — Monitoring & promotion quality (Workstream F)
+
+Workstream F hardens the monitoring and champion-challenger flows:
+
+- **Provenance on every prediction** — `processed.churn_predictions` now records `model_version` (from the MLflow registry) and `threshold_version` (the classification policy, currently `v1` at 0.5) alongside `feature_snapshot_id`.
+- **Calibration + score distribution** — the weekly monitoring DAG now computes reliability bins, Brier score, max calibration error, and 10-bucket probability distribution per run.
+- **Segment-level drift** — PSI is now computed per segment (split by `latest_is_auto_renew` and derived `has_cancel_history`) in addition to feature-level drift.
+- **Minimum-sample guard** — when the labelled current window has fewer than `MONITORING_MIN_SAMPLES` rows (default `1000`) the run is recorded with `status='insufficient_data'` and the retraining DAG is skipped. Prevents retraining on noisy, sparse windows.
+- **Business-metric promotion gate** — `register_model.py` now requires both an AUC improvement AND no regression on a business metric (default `precision_churn`) beyond `BUSINESS_METRIC_TOLERANCE` (default `0.01`). Regressions produce the new decision `kept_existing_champion_business_regression`.
+
+**One-time migration** (only needed on pre-existing databases — fresh `docker compose up` gets the schema from `db/init/`):
+
+```bash
+docker exec -i bt4301_postgres psql -U bt4301 -d kkbox \
+  < db/migrations/add_model_monitoring_results.sql
+```
+
+**Run end-to-end** (DB + MLflow + Airflow stack must be up):
+
+```bash
+# 1. Score customers — writes model_version, threshold_version, feature_snapshot_id
+python source/mlops/score_churn.py all
+
+# 2. Register (runs the business-metric gate)
+python source/mlops/register_model.py
+
+# 3. Weekly monitoring (writes calibration, segment PSI, and sample counts)
+docker exec bt4301_airflow_scheduler \
+  airflow dags trigger weekly_model_monitoring
+
+# 4. Retraining DAG reads monitoring status, skips on insufficient_data
+docker exec bt4301_airflow_scheduler \
+  airflow dags trigger automated_retraining
+```
+
+**Inspect results:**
+
+```sql
+-- Provenance on latest predictions
+SELECT DISTINCT model_version, threshold_version, feature_snapshot_id
+FROM processed.churn_predictions
+ORDER BY 1, 2 NULLS LAST LIMIT 5;
+
+-- Latest monitoring run
+SELECT status, labeled_sample_count, min_sample_threshold,
+       brier_score, max_calibration_error,
+       jsonb_pretty(segment_psi) AS segment_psi
+FROM processed.model_monitoring_results
+ORDER BY monitored_at DESC LIMIT 1;
+
+-- Registry evidence — new business-metric fields
+cat docs/artifacts/model_registry.json | python -m json.tool
+```
+
+**Environment overrides:**
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MONITORING_MIN_SAMPLES` | `1000` | Minimum labelled rows for an actionable verdict |
+| `MAX_CALIBRATION_ERROR` | `0.10` | Max bin gap before flagging calibration drift |
+| `SEGMENT_PSI` | `0.20` | PSI threshold per segment |
+| `BUSINESS_METRIC_KEY` | `precision_churn` | Metric used in the promotion gate |
+| `BUSINESS_METRIC_TOLERANCE` | `0.01` | Max absolute regression tolerated |
+| `CLASSIFICATION_THRESHOLD_VERSION` | `v1` | Version tag written into every scored row |
+
+**Run the unit tests:**
+
+```bash
+python -m pytest source/tests/test_mlops_monitoring.py \
+                  source/tests/test_mlops_promotion_gate.py -v
+```
+
+Tests are pure numpy/pandas — no MLflow, Airflow, or Postgres dependencies at runtime.
+
+---
+
 ## Airflow DAGs
 
 Current DAGs:
