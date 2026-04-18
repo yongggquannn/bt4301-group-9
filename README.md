@@ -661,7 +661,64 @@ WHERE feature_snapshot_id IS NOT NULL;
 
 ---
 
-### Step 18 — Monitoring & promotion quality (Workstream F)
+### Step 18 — Data validation with severity + persistence (Workstream E)
+
+`source/dataops/validate_data.py` runs declarative rules from
+`docs/cleansing_rules.yaml` (schema, freshness, coverage, distribution,
+plus legacy smoke checks) and writes every outcome to
+`processed.validation_results`. Each rule is tagged `warning` or
+`blocking`; a blocking failure fails the Airflow task.
+
+**One-time migration** (only needed on pre-existing databases — a fresh
+`docker compose up` already picks up the table from `db/init/02_processed.sql`):
+
+```bash
+docker exec -i bt4301_postgres psql -U bt4301 -d kkbox \
+  < db/migrations/add_validation_results.sql
+```
+
+**Run:**
+
+```bash
+python source/dataops/validate_data.py
+# or, point at a different config file:
+python source/dataops/validate_data.py --config docs/cleansing_rules.yaml
+```
+
+On the happy path every rule prints `[PASS]` and the script exits 0.
+If a blocking rule fails, the script exits 1 and the Airflow task fails.
+
+**Inspect results:**
+
+```sql
+-- Latest run outcomes
+SELECT rule_name, severity, status, created_at
+FROM processed.validation_results
+WHERE run_id = (
+  SELECT run_id FROM processed.validation_results
+  ORDER BY created_at DESC LIMIT 1
+)
+ORDER BY severity DESC, rule_name;
+
+-- Rules that have ever failed blocking
+SELECT rule_name, MAX(created_at) AS last_failed_at
+FROM processed.validation_results
+WHERE severity = 'blocking' AND status = 'fail'
+GROUP BY rule_name
+ORDER BY last_failed_at DESC;
+```
+
+**Run the unit tests:**
+
+```bash
+python -m pytest source/tests/test_validation_rules.py -v
+```
+
+Tests use a fake cursor — no Postgres connection is required.
+
+---
+
+### Step 19 — Monitoring & promotion quality (Workstream F)
 
 Workstream F hardens the monitoring and champion-challenger flows:
 
