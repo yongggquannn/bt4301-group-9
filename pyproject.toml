@@ -2,4 +2,5 @@
 testpaths = ["tests", "source/tests"]
 markers = [
     "integration: end-to-end tests requiring full Docker Compose stack",
+    "mlops: tests requiring the full ML stack (numpy, pandas, mlflow, sklearn)",
 ]

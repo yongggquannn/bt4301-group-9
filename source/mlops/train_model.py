@@ -22,6 +22,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt 
 import mlflow 
+from mlflow.models import infer_signature
 import mlflow.sklearn 
 import numpy as np 
 import pandas as pd 
@@ -56,7 +57,7 @@ EXPERIMENT_NAME = "KKBox Churn"
 
 DEFAULT_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 
-from source.common.db import get_db_config
+from source.common.db import get_current_snapshot_id, get_db_config
 
 DB_CONFIG = get_db_config()
 
@@ -141,7 +142,8 @@ class TrainOutput:
     """All outputs from a single train-and-evaluate cycle."""
 
     metrics: dict[str, float]
-    model: Any
+    estimator: Any
+    serving_model: Pipeline
     feature_names: list[str]
     y_pred: np.ndarray
     y_proba: np.ndarray
@@ -319,6 +321,37 @@ def plot_feature_importance(
     return path
 
 
+def build_serving_pipeline(
+    preprocessor: ColumnTransformer,
+    estimator: Any,
+) -> Pipeline:
+    """Package the fitted preprocessor and estimator for serving."""
+    return Pipeline(
+        steps=[
+            ("pre", preprocessor),
+            ("clf", estimator),
+        ]
+    )
+
+
+def build_serving_schema(
+    selected_features: list[str],
+    categorical_cols: list[str],
+    model_name: str,
+    strategy: str,
+) -> dict[str, Any]:
+    """Metadata recorded with the MLflow model artifact for serving."""
+    numeric_cols = [feature for feature in selected_features if feature not in categorical_cols]
+    return {
+        "model_artifact_type": "serving_pipeline",
+        "input_features": list(selected_features),
+        "categorical_features": list(categorical_cols),
+        "numeric_features": numeric_cols,
+        "model_type": model_name,
+        "imbalance_strategy": strategy,
+    }
+
+
 def train_and_evaluate(
     config: ModelConfig,
     preprocessor: ColumnTransformer,
@@ -339,19 +372,21 @@ def train_and_evaluate(
         X_train_t, y_train.values, strategy, seed,
     )
 
-    model = config.model_factory()
+    estimator = config.model_factory()
     if config.needs_sample_weight and sample_weights is not None:
-        model.fit(X_res, y_res, sample_weight=sample_weights)
+        estimator.fit(X_res, y_res, sample_weight=sample_weights)
     else:
-        model.fit(X_res, y_res)
+        estimator.fit(X_res, y_res)
 
-    y_proba = model.predict_proba(X_val_t)[:, 1]
+    y_proba = estimator.predict_proba(X_val_t)[:, 1]
     y_pred = (y_proba >= threshold).astype(int)
+    serving_model = build_serving_pipeline(preprocessor, estimator)
 
     metrics = compute_metrics(y_val.values, y_pred, y_proba)
     return TrainOutput(
         metrics=metrics,
-        model=model,
+        estimator=estimator,
+        serving_model=serving_model,
         feature_names=feature_names_out,
         y_pred=y_pred,
         y_proba=y_proba,
@@ -362,40 +397,50 @@ def train_and_evaluate(
 def log_mlflow_run(
     experiment_name: str,
     model_name: str,
-    model: Any,
+    model: Pipeline,
     hyperparams: dict[str, Any],
     metrics: dict[str, float],
     artifact_paths: list[Path],
+    signature: Any,
+    input_example: pd.DataFrame,
+    serving_schema: dict[str, Any],
     strategy: str,
     seed: int,
     test_size: float,
+    feature_snapshot_id: str | None = None,
 ) -> str:
     """Create one MLflow run and return its run_id."""
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(run_name=model_name) as run:
-        mlflow.log_params(
-            {
-                **hyperparams,
-                "model_type": model_name,
-                "imbalance_strategy": strategy,
-                "seed": seed,
-                "test_size": test_size,
-            }
-        )
+        params = {
+            **hyperparams,
+            "model_type": model_name,
+            "model_artifact_type": "serving_pipeline",
+            "imbalance_strategy": strategy,
+            "seed": seed,
+            "test_size": test_size,
+        }
+        if feature_snapshot_id is not None:
+            params["feature_snapshot_id"] = feature_snapshot_id
+        mlflow.log_params(params)
         mlflow.log_metrics(metrics)
 
         for path in artifact_paths:
             mlflow.log_artifact(str(path))
 
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        mlflow.sklearn.log_model(
+            model,
+            artifact_path="model",
+            signature=signature,
+            input_example=input_example,
+            pyfunc_predict_fn="predict_proba",
+            metadata=serving_schema,
+        )
 
         return run.info.run_id
 
 
-from governance import (
-    build_group_fairness_table,
-    write_governance_artifacts,
-)
+from governance import write_governance_artifacts
 
 
 def build_model_configs(
@@ -514,6 +559,9 @@ def main() -> None:
     )
     logger.info("Imbalance strategy: %s", strategy)
 
+    feature_snapshot_id = get_current_snapshot_id()
+    logger.info("Feature snapshot: %s", feature_snapshot_id or "none")
+
     df = load_feature_store(selected_features, args.sample_rows, args.seed)
     if len(df) < 100:
         raise RuntimeError(
@@ -540,7 +588,10 @@ def main() -> None:
     all_configs = build_model_configs(strategy, args.seed, pos_weight)
 
     slug_to_config = {MODEL_SLUG[c.name]: c for c in all_configs}
-    configs = [slug_to_config[m] for m in args.models if m in slug_to_config]
+    unknown = [m for m in args.models if m not in slug_to_config]
+    if unknown:
+        raise ValueError(f"Unknown model slug(s): {unknown}. Valid: {list(slug_to_config)}")
+    configs = [slug_to_config[m] for m in args.models]
     if not configs:
         raise ValueError(f"No matching models for --models {args.models}")
 
@@ -571,20 +622,33 @@ def main() -> None:
         fi_path: Path | None = None
         if config.has_feature_importance:
             fi_path = plot_feature_importance(
-                output.model, output.feature_names, config.name,
+                output.estimator, output.feature_names, config.name,
             )
             artifact_paths.append(fi_path)
+
+        input_example = X_val.head(min(len(X_val), 5)).copy()
+        signature = infer_signature(X_val, output.serving_model.predict_proba(X_val))
+        serving_schema = build_serving_schema(
+            selected_features=selected_features,
+            categorical_cols=cat_cols,
+            model_name=config.name,
+            strategy=strategy,
+        )
 
         run_id = log_mlflow_run(
             experiment_name=args.experiment_name,
             model_name=config.name,
-            model=output.model,
+            model=output.serving_model,
             hyperparams=config.hyperparams,
             metrics=output.metrics,
             artifact_paths=artifact_paths,
+            signature=signature,
+            input_example=input_example,
+            serving_schema=serving_schema,
             strategy=strategy,
             seed=args.seed,
             test_size=args.test_size,
+            feature_snapshot_id=feature_snapshot_id,
         )
 
         results.append(
@@ -646,6 +710,9 @@ def main() -> None:
                     "roc_auc": best.roc_auc,
                 },
                 "imbalance_strategy": strategy,
+                "model_artifact_type": "serving_pipeline",
+                "input_features": selected_features,
+                "feature_snapshot_id": feature_snapshot_id,
             },
             indent=2,
         ),

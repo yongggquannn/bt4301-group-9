@@ -50,7 +50,7 @@ jobs:
           pip install pytest httpx requests
 
       - name: Run tests
-        run: pytest -q -m "not integration" || test $? -eq 5
+        run: pytest -q -m "not integration and not mlops" || test $? -eq 5
 
   build-and-deploy:
     runs-on: ubuntu-latest

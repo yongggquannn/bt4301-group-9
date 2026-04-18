@@ -113,6 +113,26 @@ def register_best_model(
     return version
 
 
+def validate_model_artifact(best_info: dict, model_uri: str) -> None:
+    """Ensure the model artifact is usable for production scoring.
+
+    Validates from the best_model.json handoff artifact written by train_model.py,
+    avoiding an expensive artifact download just to read signature metadata.
+    """
+    if best_info.get("model_artifact_type") != "serving_pipeline":
+        raise RuntimeError(
+            f"Model artifact {model_uri} is not a serving_pipeline. "
+            "Re-run train_model.py so the serving pipeline is logged correctly before registration."
+        )
+
+    input_features = best_info.get("input_features", [])
+    if not input_features:
+        raise RuntimeError(
+            f"best_model.json has no input_features for {model_uri}. "
+            "Re-run train_model.py so the serving pipeline is logged from a DataFrame input."
+        )
+
+
 def get_model_roc_auc(client: MlflowClient, run_id: str) -> float:
     """Read ROC AUC from the source MLflow run."""
     run = client.get_run(run_id)
@@ -303,6 +323,8 @@ def main() -> None:
     run_id = best_info["run_id"]
     source_model = best_info["best_model"]
     challenger_auc = float(best_info["metrics"]["roc_auc"])
+    model_uri = f"runs:/{run_id}/model"
+    validate_model_artifact(best_info, model_uri)
     logger.info(
         "Best model: %s (run_id=%s, ROC AUC=%.4f)", source_model, run_id, challenger_auc,
     )
