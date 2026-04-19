@@ -28,16 +28,6 @@ Matches the Canvas submission layout (Week 13 zip):
 
 **Note:** Remove `.gitkeep` files from `docs/`, `source/dataops/`, `source/mlops/`, `data/raw/`, and `data/processed/` before creating the final submission zip.
 
-## Planning
-
-For parallel execution planning across app, DataOps, and MLOps enhancements, see:
-
-- `docs/parallel_enhancement_plan.md`
-
-Use this plan to split ownership, sequence higher-impact upgrades first, and track cross-workstream dependencies.
-
----
-
 ## Shared Modules (`source/common/`)
 
 These utilities are imported by all Airflow DAGs and pipeline scripts — do not run them directly.
