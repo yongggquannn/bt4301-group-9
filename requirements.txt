@@ -7,7 +7,7 @@ matplotlib
 seaborn
 psycopg2-binary
 apache-airflow
-scikit-learn
+scikit-learn==1.7.2
 mlflow
 imbalanced-learn
 xgboost
